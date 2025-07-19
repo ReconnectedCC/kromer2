@@ -3,8 +3,10 @@ use sqlx::{Pool, Postgres};
 
 use crate::{
     database::transaction::{TransactionCreateData, TransactionType},
-    models::websockets::{WebSocketMessage, WebSocketMessageInner, WebSocketMessageResponse,WebSocketEvent},
-    websockets::WebSocketServer
+    models::websockets::{
+        WebSocketEvent, WebSocketMessage, WebSocketMessageInner, WebSocketMessageResponse,
+    },
+    websockets::WebSocketServer,
 };
 
 use crate::database::transaction::Model as Transaction;
@@ -17,7 +19,7 @@ pub async fn make_transaction(
     amount: Decimal,
     metadata: Option<String>,
     msg_id: Option<usize>,
-    server: &WebSocketServer
+    server: &WebSocketServer,
 ) -> WebSocketMessage {
     let amount = amount.round_dp(2); // Make sure we do not support 2 decimals after the dot.
 
