@@ -68,7 +68,7 @@ pub async fn process_text_msg(
             amount,
             metadata,
         } => {
-            routes::transactions::make_transaction(pool, private_key, to, amount, metadata, msg_id)
+            routes::transactions::make_transaction(pool, private_key, to, amount, metadata, msg_id,server)
                 .await
         }
         WebSocketMessageInner::Work => WebSocketMessage {
