@@ -195,6 +195,9 @@ async fn name_register(
         return Err(KristError::Transaction(TransactionError::InsufficientFunds));
     }
 
+    // Update the wallet balance first (deduct the name cost)
+    let updated_wallet = verify_addr_resp.model.update_balance(pool, -new_name_cost).await?;
+
     // Create the transaction
     let creation_data = TransactionCreateData {
         from: verify_addr_resp.model.address.clone(),
@@ -204,7 +207,7 @@ async fn name_register(
         ..Default::default()
     };
 
-    let transaction = Transaction::create(pool, creation_data).await?;
+    let transaction = Transaction::create_no_update(pool, creation_data).await?;
     tracing::info!(
         "Created transaction for name purchase with ID {}",
         transaction.id
@@ -216,7 +219,7 @@ async fn name_register(
     websocket_server.broadcast_event(event).await;
 
     // Create the new name
-    let name = Name::create(pool, name.clone(), verify_addr_resp.model.address).await?;
+    let name = Name::create(pool, name.clone(), updated_wallet.address).await?;
     let response = NameResponse {
         ok: true,
         name: name.into(),
