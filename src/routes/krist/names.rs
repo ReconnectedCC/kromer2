@@ -205,6 +205,7 @@ async fn name_register(
     let creation_data = TransactionCreateData {
         from: verify_addr_resp.model.address.clone(),
         to: "name".to_string(),
+        name: Some(name.clone()),
         amount: new_name_cost,
         transaction_type: TransactionType::NamePurchase,
         ..Default::default()

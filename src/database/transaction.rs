@@ -157,7 +157,7 @@ impl<'q> Model {
         E: 'q + Executor<'q, Database = Postgres>,
     {
         let metadata = creation_data.metadata.unwrap_or_default();
-        let q = r#"INSERT INTO transactions(amount, "from", "to", metadata, transaction_type, date) VALUES ($1, $2, $3, $4, $5, NOW()) RETURNING *"#;
+        let q = r#"INSERT INTO transactions(amount, "from", "to", metadata, transaction_type, date, name) VALUES ($1, $2, $3, $4, $5, NOW(), $6) RETURNING *"#;
 
         sqlx::query_as(q)
             .bind(creation_data.amount)
@@ -165,6 +165,7 @@ impl<'q> Model {
             .bind(&creation_data.to)
             .bind(metadata)
             .bind(creation_data.transaction_type)
+            .bind(&creation_data.name)
             .fetch_one(executor)
             .await
             .map_err(DatabaseError::Sqlx)
