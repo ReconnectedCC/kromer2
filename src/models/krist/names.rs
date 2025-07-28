@@ -73,10 +73,10 @@ pub struct NameDataUpdateBody {
 pub struct NameJson {
     pub name: String,
     pub owner: String,
-    pub original_owner: Option<String>,
     pub registered: String,
     pub updated: Option<String>,
-    pub transfered: Option<String>,
+    pub transferred: Option<String>,
+    pub a: Option<String>,
     pub unpaid: i64,
 }
 
@@ -85,10 +85,10 @@ impl From<name::Model> for NameJson {
         Self {
             name: name.name,
             owner: name.owner,
-            original_owner: Some(name.original_owner),
             registered: name.time_registered.to_rfc3339(),
             updated: None,    // TODO: Populate this.
-            transfered: None, // TODO: Populate this
+            transferred: None, // TODO: Populate this
+            a: None,          // TODO: Populate this from database
             unpaid: 0,
         }
     }

@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 
 use actix_web::{HttpResponse, get, web};
 
@@ -24,7 +23,7 @@ async fn names_lookup(
         .filter(|s| !s.is_empty())
         .collect();
 
-    let address_count = addresses.len();
+    let _address_count = addresses.len();
 
     // Convert query parameters
     let limit = params.limit.unwrap_or(50) as i64;
@@ -55,19 +54,13 @@ async fn names_lookup(
         .map(|model| model.into())
         .collect();
     
-    let found = json_models.len();
-
-    // Create hashmap with name as key
-    let hashmap: HashMap<String, NameJson> = json_models
-        .into_iter()
-        .map(|model| (model.name.clone(), model))
-        .collect();
+    let count = json_models.len();
 
     let response = LookupResponse {
         ok: true,
-        found,
-        not_found: address_count.saturating_sub(found),
-        names: hashmap,
+        count,
+        total: paginated_result.total as usize,
+        names: json_models,
     };
 
     Ok(HttpResponse::Ok().json(response))
