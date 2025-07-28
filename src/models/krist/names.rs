@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use rust_decimal::prelude::ToPrimitive;
 
 use crate::database::name;
 // use utoipa::ToResponse;
@@ -86,10 +87,10 @@ impl From<name::Model> for NameJson {
             name: name.name,
             owner: name.owner,
             registered: name.time_registered.to_rfc3339(),
-            updated: None,    // TODO: Populate this.
-            transferred: None, // TODO: Populate this
-            a: None,          // TODO: Populate this from database
-            unpaid: 0,
+            updated: name.last_updated.map(|dt| dt.to_rfc3339()),
+            transferred: name.last_transfered.map(|dt| dt.to_rfc3339()),
+            a: name.metadata,
+            unpaid: name.unpaid.to_i64().unwrap_or(0),
         }
     }
 }
