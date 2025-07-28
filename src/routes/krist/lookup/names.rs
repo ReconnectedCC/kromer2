@@ -1,0 +1,78 @@
+use std::collections::HashMap;
+
+use actix_web::{HttpResponse, get, web};
+
+use crate::database::name::Model as Name;
+use crate::models::krist::names::NameJson;
+use crate::models::krist::webserver::lookup::names::{LookupResponse, QueryParameters};
+use crate::{AppState, errors::krist::KristError};
+
+#[get("/{addresses}")]
+async fn names_lookup(
+    state: web::Data<AppState>,
+    addresses: web::Path<String>,
+    params: web::Query<QueryParameters>,
+) -> Result<HttpResponse, KristError> {
+    let pool = &state.pool;
+    let addresses = addresses.into_inner();
+    let params = params.into_inner();
+
+    // Parse comma-separated addresses
+    let addresses: Vec<String> = addresses
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    let address_count = addresses.len();
+
+    // Convert query parameters
+    let limit = params.limit.unwrap_or(50) as i64;
+    let offset = params.offset.unwrap_or(0) as i64;
+    let order_by = params.order_by.as_deref().unwrap_or("name");
+    let order = params.order.as_deref().unwrap_or("ASC");
+
+    // Lookup names
+    let address_list = if addresses.is_empty() {
+        None
+    } else {
+        Some(addresses)
+    };
+
+    let paginated_result = Name::lookup_names(
+        pool,
+        address_list,
+        limit,
+        offset,
+        order_by,
+        order,
+    ).await
+    .map_err(|e| KristError::Database(e))?;
+
+    // Convert to JSON format
+    let json_models: Vec<NameJson> = paginated_result.rows
+        .into_iter()
+        .map(|model| model.into())
+        .collect();
+    
+    let found = json_models.len();
+
+    // Create hashmap with name as key
+    let hashmap: HashMap<String, NameJson> = json_models
+        .into_iter()
+        .map(|model| (model.name.clone(), model))
+        .collect();
+
+    let response = LookupResponse {
+        ok: true,
+        found,
+        not_found: address_count.saturating_sub(found),
+        names: hashmap,
+    };
+
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub fn config(cfg: &mut web::ServiceConfig) {
+    cfg.service(names_lookup);
+}
