@@ -94,6 +94,40 @@ async fn name_history(
     Ok(HttpResponse::Ok().json(response))
 }
 
+#[get("/{name}/transactions")]
+async fn name_transactions(
+    state: web::Data<AppState>,
+    name: web::Path<String>,
+    params: web::Query<QueryParameters>,
+) -> Result<HttpResponse, KristError> {
+    let pool = &state.pool;
+    let name = name.into_inner();
+    let params = params.into_inner();
+
+    let limit = params.limit.unwrap_or(50) as i64;
+    let offset = params.offset.unwrap_or(0) as i64;
+    let order_by = params.order_by.as_deref().unwrap_or("id");
+    let order = params.order.as_deref().unwrap_or("DESC");
+
+    let (transactions, total) = Transaction::fetch_by_sent_name(pool, &name, limit, offset, order_by, order)
+        .await
+        .map_err(|e| KristError::Database(e))?;
+
+    let json_transactions: Vec<TransactionJson> =
+        transactions.into_iter().map(|model| model.into()).collect();
+
+    let count = json_transactions.len();
+
+    let response = TransactionListResponse {
+        ok: true,
+        count,
+        total,
+        transactions: json_transactions,
+    };
+
+    Ok(HttpResponse::Ok().json(response))
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
-    cfg.service(names_lookup).service(name_history);
+    cfg.service(names_lookup).service(name_history).service(name_transactions);
 }

@@ -253,6 +253,60 @@ impl<'q> Model {
 
         Ok((rows, total as usize))
     }
+
+    pub async fn fetch_by_sent_name(
+        pool: &Pool<Postgres>,
+        sent_name: &str,
+        limit: i64,
+        offset: i64,
+        order_by: &str,
+        order: &str,
+    ) -> sqlx::Result<(Vec<Model>, usize)> {
+        let limit = limit.clamp(1, 1000);
+
+        // Validate order_by and order parameters
+        let order_by = match order_by {
+            "id" | "amount" | "date" | "from" | "to" => order_by,
+            _ => "id",
+        };
+        let order = match order.to_uppercase().as_str() {
+            "ASC" | "DESC" => order.to_uppercase(),
+            _ => "DESC".to_string(),
+        };
+
+        // Count query
+        let count_query = r#"
+            SELECT COUNT(*) as total
+            FROM transactions
+            WHERE sent_name = $1
+        "#;
+
+        let total: i64 = sqlx::query_scalar(count_query)
+            .bind(sent_name)
+            .fetch_one(pool)
+            .await?;
+
+        // Main query with dynamic ordering
+        let query = format!(
+            r#"
+            SELECT *
+            FROM transactions
+            WHERE sent_name = $1
+            ORDER BY {} {}
+            LIMIT $2 OFFSET $3
+            "#,
+            order_by, order
+        );
+
+        let rows = sqlx::query_as(&query)
+            .bind(sent_name)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool)
+            .await?;
+
+        Ok((rows, total as usize))
+    }
 }
 
 impl TransactionNameData {
