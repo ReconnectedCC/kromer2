@@ -223,11 +223,12 @@ impl<'q> Model {
     ) -> sqlx::Result<(Vec<Model>, usize)> {
         let limit = limit.clamp(1, 1000);
 
-        // Count query
+        // Count query - only name-related transactions
         let count_query = r#"
             SELECT COUNT(*) as total
             FROM transactions
-            WHERE name = $1 OR sent_name = $1
+            WHERE (name = $1 OR sent_name = $1)
+            AND transaction_type IN ('name_purchase', 'name_a_record', 'name_transfer')
         "#;
 
         let total: i64 = sqlx::query_scalar(count_query)
@@ -235,11 +236,12 @@ impl<'q> Model {
             .fetch_one(pool)
             .await?;
 
-        // Main query
+        // Main query - only name-related transactions
         let query = r#"
             SELECT *
             FROM transactions
-            WHERE name = $1 OR sent_name = $1
+            WHERE (name = $1 OR sent_name = $1)
+            AND transaction_type IN ('name_purchase', 'name_a_record', 'name_transfer')
             ORDER BY date DESC
             LIMIT $2 OFFSET $3
         "#;
@@ -274,11 +276,11 @@ impl<'q> Model {
             _ => "DESC".to_string(),
         };
 
-        // Count query
+        // Count query - match both name and sent_name columns
         let count_query = r#"
             SELECT COUNT(*) as total
             FROM transactions
-            WHERE sent_name = $1
+            WHERE name = $1 OR sent_name = $1
         "#;
 
         let total: i64 = sqlx::query_scalar(count_query)
@@ -286,12 +288,12 @@ impl<'q> Model {
             .fetch_one(pool)
             .await?;
 
-        // Main query with dynamic ordering
+        // Main query with dynamic ordering - match both name and sent_name columns
         let query = format!(
             r#"
             SELECT *
             FROM transactions
-            WHERE sent_name = $1
+            WHERE name = $1 OR sent_name = $1
             ORDER BY {} {}
             LIMIT $2 OFFSET $3
             "#,
