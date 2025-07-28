@@ -109,9 +109,10 @@ async fn name_transactions(
     let order_by = params.order_by.as_deref().unwrap_or("id");
     let order = params.order.as_deref().unwrap_or("DESC");
 
-    let (transactions, total) = Transaction::fetch_by_sent_name(pool, &name, limit, offset, order_by, order)
-        .await
-        .map_err(|e| KristError::Database(e))?;
+    let (transactions, total) =
+        Transaction::fetch_by_sent_name(pool, &name, limit, offset, order_by, order)
+            .await
+            .map_err(|e| KristError::Database(e))?;
 
     let json_transactions: Vec<TransactionJson> =
         transactions.into_iter().map(|model| model.into()).collect();
@@ -129,5 +130,7 @@ async fn name_transactions(
 }
 
 pub fn config(cfg: &mut web::ServiceConfig) {
-    cfg.service(names_lookup).service(name_history).service(name_transactions);
+    cfg.service(names_lookup)
+        .service(name_history)
+        .service(name_transactions);
 }
