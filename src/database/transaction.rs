@@ -214,6 +214,45 @@ impl<'q> Model {
 
         Ok(model)
     }
+
+    pub async fn fetch_name_history(
+        pool: &Pool<Postgres>,
+        name: &str,
+        limit: i64,
+        offset: i64,
+    ) -> sqlx::Result<(Vec<Model>, usize)> {
+        let limit = limit.clamp(1, 1000);
+
+        // Count query
+        let count_query = r#"
+            SELECT COUNT(*) as total
+            FROM transactions
+            WHERE name = $1 OR sent_name = $1
+        "#;
+
+        let total: i64 = sqlx::query_scalar(count_query)
+            .bind(name)
+            .fetch_one(pool)
+            .await?;
+
+        // Main query
+        let query = r#"
+            SELECT *
+            FROM transactions
+            WHERE name = $1 OR sent_name = $1
+            ORDER BY date DESC
+            LIMIT $2 OFFSET $3
+        "#;
+
+        let rows = sqlx::query_as(query)
+            .bind(name)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool)
+            .await?;
+
+        Ok((rows, total as usize))
+    }
 }
 
 impl TransactionNameData {

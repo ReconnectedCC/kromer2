@@ -1,8 +1,9 @@
-
 use actix_web::{HttpResponse, get, web};
 
 use crate::database::name::Model as Name;
+use crate::database::transaction::Model as Transaction;
 use crate::models::krist::names::NameJson;
+use crate::models::krist::transactions::{TransactionJson, TransactionListResponse};
 use crate::models::krist::webserver::lookup::names::{LookupResponse, QueryParameters};
 use crate::{AppState, errors::krist::KristError};
 
@@ -38,22 +39,17 @@ async fn names_lookup(
         Some(addresses)
     };
 
-    let paginated_result = Name::lookup_names(
-        pool,
-        address_list,
-        limit,
-        offset,
-        order_by,
-        order,
-    ).await
-    .map_err(|e| KristError::Database(e))?;
+    let paginated_result = Name::lookup_names(pool, address_list, limit, offset, order_by, order)
+        .await
+        .map_err(|e| KristError::Database(e))?;
 
     // Convert to JSON format
-    let json_models: Vec<NameJson> = paginated_result.rows
+    let json_models: Vec<NameJson> = paginated_result
+        .rows
         .into_iter()
         .map(|model| model.into())
         .collect();
-    
+
     let count = json_models.len();
 
     let response = LookupResponse {
@@ -66,6 +62,38 @@ async fn names_lookup(
     Ok(HttpResponse::Ok().json(response))
 }
 
+#[get("/{name}/history")]
+async fn name_history(
+    state: web::Data<AppState>,
+    name: web::Path<String>,
+    params: web::Query<QueryParameters>,
+) -> Result<HttpResponse, KristError> {
+    let pool = &state.pool;
+    let name = name.into_inner();
+    let params = params.into_inner();
+
+    let limit = params.limit.unwrap_or(50) as i64;
+    let offset = params.offset.unwrap_or(0) as i64;
+
+    let (transactions, total) = Transaction::fetch_name_history(pool, &name, limit, offset)
+        .await
+        .map_err(|e| KristError::Database(e))?;
+
+    let json_transactions: Vec<TransactionJson> =
+        transactions.into_iter().map(|model| model.into()).collect();
+
+    let count = json_transactions.len();
+
+    let response = TransactionListResponse {
+        ok: true,
+        count,
+        total,
+        transactions: json_transactions,
+    };
+
+    Ok(HttpResponse::Ok().json(response))
+}
+
 pub fn config(cfg: &mut web::ServiceConfig) {
-    cfg.service(names_lookup);
+    cfg.service(names_lookup).service(name_history);
 }

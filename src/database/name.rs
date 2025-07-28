@@ -262,8 +262,7 @@ impl<'q> Model {
         offset: i64,
         order_by: &str,
         order: &str,
-    ) -> sqlx::Result<PaginatedResult<Model>>
-    {
+    ) -> sqlx::Result<PaginatedResult<Model>> {
         // Validate order_by to prevent SQL Injections
         let valid_columns = [
             "name",
@@ -284,7 +283,9 @@ impl<'q> Model {
 
         // Build the ORDER BY clause
         let order_clause = match order_by {
-            "transferredOrRegistered" => format!("COALESCE(last_transfered, time_registered) {order}"),
+            "transferredOrRegistered" => {
+                format!("COALESCE(last_transfered, time_registered) {order}")
+            }
             "registered" => format!("time_registered {order}"),
             "transferred" => format!("last_transfered {order}"),
             other => format!("{other} {order}"),
