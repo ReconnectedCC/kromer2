@@ -23,4 +23,5 @@ pub struct QueryParameters {
     pub order: Option<String>,
     pub limit: Option<usize>,
     pub offset: Option<usize>,
+    pub include_mined: Option<String>,
 }

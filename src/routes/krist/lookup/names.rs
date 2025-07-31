@@ -39,9 +39,8 @@ async fn names_lookup(
         Some(addresses)
     };
 
-    let paginated_result = Name::lookup_names(pool, address_list, limit, offset, order_by, order)
-        .await
-        .map_err(|e| KristError::Database(e))?;
+    let paginated_result =
+        Name::lookup_names(pool, address_list, limit, offset, order_by, order).await?;
 
     // Convert to JSON format
     let json_models: Vec<NameJson> = paginated_result
@@ -74,10 +73,11 @@ async fn name_history(
 
     let limit = params.limit.unwrap_or(50) as i64;
     let offset = params.offset.unwrap_or(0) as i64;
+    let order_by = params.order_by.as_deref().unwrap_or("id");
+    let order = params.order.as_deref().unwrap_or("DESC");
 
-    let (transactions, total) = Transaction::fetch_name_history(pool, &name, limit, offset)
-        .await
-        .map_err(|e| KristError::Database(e))?;
+    let (transactions, total) =
+        Transaction::fetch_name_history(pool, &name, limit, offset, order_by, order).await?;
 
     let json_transactions: Vec<TransactionJson> =
         transactions.into_iter().map(|model| model.into()).collect();
@@ -110,9 +110,7 @@ async fn name_transactions(
     let order = params.order.as_deref().unwrap_or("DESC");
 
     let (transactions, total) =
-        Transaction::fetch_by_sent_name(pool, &name, limit, offset, order_by, order)
-            .await
-            .map_err(|e| KristError::Database(e))?;
+        Transaction::fetch_by_sent_name(pool, &name, limit, offset, order_by, order).await?;
 
     let json_transactions: Vec<TransactionJson> =
         transactions.into_iter().map(|model| model.into()).collect();

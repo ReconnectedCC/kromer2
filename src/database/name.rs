@@ -222,7 +222,7 @@ impl<'q> Model {
         conn: A,
         server: &WebSocketServer,
         new_owner_address: String,
-    ) -> Result<Model>
+    ) -> Result<Model, DatabaseError>
     where
         A: Acquire<'q, Database = Postgres>,
     {
@@ -262,23 +262,25 @@ impl<'q> Model {
         offset: i64,
         order_by: &str,
         order: &str,
-    ) -> sqlx::Result<PaginatedResult<Model>> {
-        // Validate order_by to prevent SQL Injections
-        let valid_columns = [
-            "name",
-            "owner",
-            "registered",
-            "transferred",
-            "transferredOrRegistered",
-        ];
-        if !valid_columns.contains(&order_by) {
-            return Err(sqlx::Error::Protocol("Invalid order_by column".into()));
-        }
+    ) -> Result<PaginatedResult<Model>, DatabaseError> {
+        // Validate order_by parameter against allowed fields
+        let order_by = match order_by {
+            "name"
+            | "owner"
+            | "original_owner"
+            | "registered"
+            | "updated"
+            | "transferred"
+            | "transferredOrRegistered"
+            | "a"
+            | "unpaid" => order_by,
+            _ => "name",
+        };
 
-        // Validate order direction
+        // Validate order parameter against allowed fields
         let order = match order.to_uppercase().as_str() {
             "ASC" | "DESC" => order.to_uppercase(),
-            _ => return Err(sqlx::Error::Protocol("Invalid order direction".into())),
+            _ => "ASC".to_string(),
         };
 
         // Build the ORDER BY clause
