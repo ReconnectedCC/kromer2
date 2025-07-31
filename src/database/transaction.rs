@@ -135,11 +135,16 @@ impl<'q> Model {
         pool: &Pool<Postgres>,
         pagination: &PaginationParams,
     ) -> Result<Vec<Model>> {
+        tracing::info!("Limit was {:?}", pagination.limit);
         let limit = pagination.limit.unwrap_or(50);
         let offset = pagination.offset.unwrap_or(0);
         let limit = limit.clamp(1, 1000);
 
-        let q = r#"SELECT * FROM transactions ORDER BY date DESC LIMIT $1 OFFSET $2;"#;
+        let q = if pagination.exclude_mined == Some(true) {
+            r#"SELECT * FROM transactions WHERE transaction_type != 'mined' ORDER BY date DESC LIMIT $1 OFFSET $2;"#
+        } else {
+            r#"SELECT * FROM transactions ORDER BY date DESC LIMIT $1 OFFSET $2;"#
+        };
 
         sqlx::query_as(q)
             .bind(limit)
