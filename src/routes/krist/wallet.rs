@@ -5,7 +5,9 @@ use crate::AppState;
 use crate::database::{ModelExt, name::Model as Name, wallet::Model as Wallet};
 use crate::errors::krist::KristError;
 use crate::errors::krist::address::AddressError;
-use crate::models::krist::addresses::{AddressJson, AddressListResponse, AddressResponse};
+use crate::models::krist::addresses::{
+    AddressGetQuery, AddressJson, AddressListResponse, AddressResponse,
+};
 use crate::models::krist::names::{NameJson, NameListResponse};
 use crate::models::krist::transactions::{
     AddressTransactionQuery, TransactionJson, TransactionListResponse,
@@ -46,10 +48,15 @@ async fn wallet_list(
 async fn wallet_get(
     state: web::Data<AppState>,
     address: web::Path<String>,
+    query: web::Query<AddressGetQuery>,
 ) -> Result<HttpResponse, KristError> {
     let address = address.into_inner();
 
-    let wallet = Wallet::fetch_by_address(&state.pool, &address).await?;
+    let wallet = if query.0.fetch_names == Some(true) {
+        Wallet::fetch_by_address_names(&state.pool, &address).await?
+    } else {
+        Wallet::fetch_by_address(&state.pool, &address).await?
+    };
 
     wallet
         .map(|addr| AddressResponse {
