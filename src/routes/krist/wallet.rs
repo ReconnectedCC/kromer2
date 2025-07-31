@@ -52,10 +52,9 @@ async fn wallet_get(
 ) -> Result<HttpResponse, KristError> {
     let address = address.into_inner();
 
-    let wallet = if query.0.fetch_names == Some(true) {
-        Wallet::fetch_by_address_names(&state.pool, &address).await?
-    } else {
-        Wallet::fetch_by_address(&state.pool, &address).await?
+    let wallet = match query.0.fetch_names {
+        Some(true) => Wallet::fetch_by_address_names(&state.pool, &address).await?,
+        _ => Wallet::fetch_by_address(&state.pool, &address).await?,
     };
 
     wallet
