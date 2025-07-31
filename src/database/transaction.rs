@@ -398,7 +398,7 @@ impl<'q> Model {
                 FROM transactions
                 WHERE {}
                 ORDER BY {} {}
-                LIMIT ${} OFFSET ${}
+                LIMIT {} OFFSET {}
                 "#,
                 where_clause, order_by, order, limit_param, offset_param
             );
