@@ -135,7 +135,6 @@ impl<'q> Model {
         pool: &Pool<Postgres>,
         pagination: &PaginationParams,
     ) -> Result<Vec<Model>> {
-        tracing::info!("Limit was {:?}", pagination.limit);
         let limit = pagination.limit.unwrap_or(50);
         let offset = pagination.offset.unwrap_or(0);
         let limit = limit.clamp(1, 1000);
