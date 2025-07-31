@@ -47,8 +47,7 @@ async fn transactions_lookup(
         order,
         include_mined,
     )
-    .await
-    .map_err(|e| KristError::Database(e))?;
+    .await?;
 
     let count = transactions.len();
 

@@ -222,7 +222,7 @@ impl<'q> Model {
         conn: A,
         server: &WebSocketServer,
         new_owner_address: String,
-    ) -> Result<Model, DatabaseError>
+    ) -> Result<Model>
     where
         A: Acquire<'q, Database = Postgres>,
     {
@@ -262,7 +262,7 @@ impl<'q> Model {
         offset: i64,
         order_by: &str,
         order: &str,
-    ) -> Result<PaginatedResult<Model>, DatabaseError> {
+    ) -> Result<PaginatedResult<Model>> {
         // Validate order_by parameter against allowed fields
         let order_by = match order_by {
             "name"

@@ -228,7 +228,7 @@ impl<'q> Model {
         offset: i64,
         order_by: &str,
         order: &str,
-    ) -> Result<(Vec<Model>, usize), DatabaseError> {
+    ) -> Result<(Vec<Model>, usize)> {
         let limit = limit.clamp(1, 1000);
 
         // Validate order_by parameter against allowed fields
@@ -288,7 +288,7 @@ impl<'q> Model {
         offset: i64,
         order_by: &str,
         order: &str,
-    ) -> Result<(Vec<Model>, usize), DatabaseError> {
+    ) -> Result<(Vec<Model>, usize)> {
         let limit = limit.clamp(1, 1000);
 
         // Validate order_by and order parameters
@@ -343,7 +343,7 @@ impl<'q> Model {
         order_by: &str,
         order: &str,
         include_mined: bool,
-    ) -> sqlx::Result<(
+    ) -> Result<(
         Vec<crate::models::krist::transactions::TransactionJson>,
         usize,
     )> {
