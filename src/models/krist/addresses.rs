@@ -58,6 +58,12 @@ impl From<wallet::Model> for AddressJson {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
+pub struct AddressGetQuery {
+    #[serde(alias = "fetchNames")]
+    pub fetch_names: Option<bool>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

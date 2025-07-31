@@ -142,11 +142,12 @@ pub async fn send_hello_message(session: &mut actix_ws::Session) {
                 work: 500,
                 last_block: None,
                 package: PackageInfo {
-                    name: "Kromer".to_string(),
-                    version: "0.2.0".to_string(),
+                    name: crate::build_info::PKG_NAME.to_string(),
+                    version: crate::build_info::PKG_VERSION.to_string(),
                     author: "ReconnectedCC Team".to_string(),
                     license: "GPL-3.0".to_string(),
                     repository: "https://github.com/ReconnectedCC/kromer/".to_string(),
+                    git_hash: crate::build_info::GIT_COMMIT_HASH.map(|s| s.to_string()),
                 },
                 constants: Constants {
                     wallet_version: 3,

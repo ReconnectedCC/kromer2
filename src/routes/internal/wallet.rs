@@ -87,11 +87,13 @@ async fn wallet_give_money(
         transaction_type: TransactionType::Mined,
         ..Default::default()
     };
-    let transaction = Transaction::create_no_update(pool, creation_data).await?; // bitches.
+    let transaction = Transaction::create_no_update(&mut *tx, creation_data).await?; // bitches.
     tracing::info!(
         "Created a transaction for welfare with ID {}",
         transaction.id
     );
+
+    tx.commit().await?;
 
     Ok(HttpResponse::Ok().json(json!({
         "wallet": updated_wallet

@@ -5,7 +5,9 @@ use crate::AppState;
 use crate::database::{ModelExt, name::Model as Name, wallet::Model as Wallet};
 use crate::errors::krist::KristError;
 use crate::errors::krist::address::AddressError;
-use crate::models::krist::addresses::{AddressJson, AddressListResponse, AddressResponse};
+use crate::models::krist::addresses::{
+    AddressGetQuery, AddressJson, AddressListResponse, AddressResponse,
+};
 use crate::models::krist::names::{NameJson, NameListResponse};
 use crate::models::krist::transactions::{
     AddressTransactionQuery, TransactionJson, TransactionListResponse,
@@ -25,7 +27,7 @@ async fn wallet_list(
 
     let mut tx = pool.begin().await?;
 
-    let count = Wallet::total_count(&mut *tx).await?;
+    let total = Wallet::total_count(&mut *tx).await?;
     let wallets = Wallet::fetch_all(&mut *tx, limit, offset).await?;
 
     tx.commit().await?;
@@ -34,8 +36,8 @@ async fn wallet_list(
 
     let list_response = AddressListResponse {
         ok: true,
-        count,
-        total: addresses.len(),
+        count: addresses.len(),
+        total,
         addresses,
     };
 
@@ -46,10 +48,14 @@ async fn wallet_list(
 async fn wallet_get(
     state: web::Data<AppState>,
     address: web::Path<String>,
+    query: web::Query<AddressGetQuery>,
 ) -> Result<HttpResponse, KristError> {
     let address = address.into_inner();
 
-    let wallet = Wallet::fetch_by_address(&state.pool, &address).await?;
+    let wallet = match query.0.fetch_names {
+        Some(true) => Wallet::fetch_by_address_names(&state.pool, &address).await?,
+        _ => Wallet::fetch_by_address(&state.pool, &address).await?,
+    };
 
     wallet
         .map(|addr| AddressResponse {

@@ -53,6 +53,7 @@ async fn get_motd() -> HttpResponse {
             author: "ReconnectedCC Team".to_string(),
             license: "GPL-3.0".to_string(),
             repository: "https://github.com/ReconnectedCC/kromer/".to_string(),
+            git_hash: crate::build_info::GIT_COMMIT_HASH.map(|s| s.to_string()),
         },
         constants: Constants {
             wallet_version: 3,

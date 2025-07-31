@@ -41,6 +41,9 @@ pub fn config(cfg: &mut web::ServiceConfig) {
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct PaginationParams {
+    #[serde(alias = "excludeMined")]
+    // Only used on /transactions routes
+    pub exclude_mined: Option<bool>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
 }
@@ -48,6 +51,7 @@ pub struct PaginationParams {
 impl Default for PaginationParams {
     fn default() -> Self {
         Self {
+            exclude_mined: None,
             limit: Some(50),
             offset: Some(0),
         }
