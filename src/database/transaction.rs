@@ -219,6 +219,44 @@ impl<'q> Model {
 
         Ok(model)
     }
+
+    // Implemented both of the "no_mined" functions here rather than simply modifying the existing total count function because I
+    // don't want to change an entire trait def
+    pub async fn total_count_no_mined<E>(pool: E, params: &PaginationParams) -> Result<usize>
+    where
+        E: 'q + Executor<'q, Database = Postgres>,
+    {
+        let q = match params.exclude_mined {
+            Some(true) => r#"SELECT COUNT(*) FROM transactions WHERE transaction_type != 'mined'"#,
+            _ => r#"SELECT COUNT(*) FROM transactions"#,
+        };
+        let result: i64 = sqlx::query_scalar(q).fetch_one(pool).await?;
+
+        Ok(result as usize)
+    }
+
+    pub async fn fetch_all_no_mined<E>(pool: E, params: &PaginationParams) -> Result<Vec<Self>>
+    where
+        Self: Sized,
+        E: 'q + Executor<'q, Database = Postgres>,
+    {
+        let limit = params.limit.unwrap_or(50).clamp(1, 1000);
+        let offset = params.offset.unwrap_or(0);
+
+        let q = match params.exclude_mined {
+            Some(true) => {
+                r#"SELECT * from transactions WHERE transaction_type != 'mined' LIMIT $1 OFFSET $2"#
+            }
+            _ => r#"SELECT * from transactions LIMIT $1 OFFSET $2"#,
+        };
+
+        sqlx::query_as(q)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool)
+            .await
+            .map_err(DatabaseError::Sqlx)
+    }
 }
 
 impl TransactionNameData {

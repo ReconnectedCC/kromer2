@@ -29,13 +29,10 @@ pub async fn transaction_list(
     let params = query.into_inner();
     let pool = &state.pool;
 
-    let limit = params.limit.unwrap_or(50);
-    let offset = params.offset.unwrap_or(0);
-
     let mut tx = pool.begin().await?;
 
-    let total_transaction = Transaction::total_count(&mut *tx).await?;
-    let transactions = Transaction::fetch_all(&mut *tx, limit, offset).await?;
+    let total_transaction = Transaction::total_count_no_mined(&mut *tx, &params).await?;
+    let transactions = Transaction::fetch_all_no_mined(&mut *tx, &params).await?;
 
     tx.commit().await?;
 
@@ -155,7 +152,7 @@ async fn transaction_latest(
     let params = query.into_inner();
     let pool = &state.pool;
 
-    let total = Transaction::total_count(pool).await?;
+    let total = Transaction::total_count_no_mined(pool, &params).await?;
     let transactions = Transaction::sorted_by_date(pool, &params).await?;
 
     let transactions: Vec<TransactionJson> =
