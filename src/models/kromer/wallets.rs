@@ -29,7 +29,7 @@ impl From<wallet::Model> for Wallet {
             created_at: value.created_at,
             locked: value.locked,
             total_in: value.total_in,
-            total_out: value.total_in,
+            total_out: value.total_out,
             names: value.names,
         }
     }
