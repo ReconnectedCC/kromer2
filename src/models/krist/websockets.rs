@@ -24,7 +24,6 @@ pub enum WebSocketMessageInner {
         server_time: String,
     },
     Response {
-        responding_to: String,
         #[serde(flatten)]
         data: WebSocketMessageResponse,
     },

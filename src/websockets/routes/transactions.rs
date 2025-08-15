@@ -131,7 +131,6 @@ pub async fn make_transaction(
         ok: Some(true),
         id: msg_id,
         r#type: WebSocketMessageInner::Response {
-            responding_to: "make_transaction".to_owned(),
             data: WebSocketMessageResponse::MakeTransaction {
                 transaction: transaction.into(),
             },

@@ -41,7 +41,6 @@ pub async fn perform_login(
                     ok: Some(true),
                     id: msg_id,
                     r#type: WebSocketMessageInner::Response {
-                        responding_to: "login".to_owned(),
                         data: WebSocketMessageResponse::Login {
                             is_guest: false,
                             address: Some(wallet.into()),
@@ -53,7 +52,6 @@ pub async fn perform_login(
                     ok: Some(true),
                     id: msg_id,
                     r#type: WebSocketMessageInner::Response {
-                        responding_to: "login".to_owned(),
                         data: WebSocketMessageResponse::Login {
                             is_guest: true,
                             address: None,
@@ -66,7 +64,6 @@ pub async fn perform_login(
             ok: Some(true),
             id: msg_id,
             r#type: WebSocketMessageInner::Response {
-                responding_to: "login".to_owned(),
                 data: WebSocketMessageResponse::Login {
                     is_guest: true,
                     address: None,
@@ -94,7 +91,6 @@ pub async fn perform_logout(
         ok: Some(true),
         id: msg_id,
         r#type: WebSocketMessageInner::Response {
-            responding_to: "logout".to_owned(),
             data: WebSocketMessageResponse::Logout { is_guest: true },
         },
     }

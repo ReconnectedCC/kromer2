@@ -29,7 +29,6 @@ pub async fn get_myself(
             ok: Some(true),
             id: msg_id,
             r#type: WebSocketMessageInner::Response {
-                responding_to: "me".to_owned(),
                 data: WebSocketMessageResponse::Me {
                     is_guest: true,
                     address: None,
@@ -74,7 +73,6 @@ pub async fn get_myself(
         ok: Some(true),
         id: msg_id,
         r#type: WebSocketMessageInner::Response {
-            responding_to: "me".to_owned(),
             data: WebSocketMessageResponse::Me {
                 is_guest: false,
                 address: Some(wallet_resp),

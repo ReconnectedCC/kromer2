@@ -47,7 +47,6 @@ pub async fn get_address(
         ok: Some(true),
         id: msg_id,
         r#type: WebSocketMessageInner::Response {
-            responding_to: "address".to_owned(),
             data: WebSocketMessageResponse::Address {
                 address: wallet.into(),
             },
