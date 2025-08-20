@@ -194,7 +194,7 @@ async fn name_register(
     }
 
     // Update the wallet balance first (deduct the name cost)
-    let updated_wallet = verify_addr_resp
+    let _updated_wallet = verify_addr_resp
         .model
         .update_balance(pool, -new_name_cost)
         .await?;

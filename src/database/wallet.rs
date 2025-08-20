@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use rust_decimal::{Decimal, dec};
-use sqlx::{Acquire, Encode, Executor, Pool, Postgres, Type};
+use sqlx::{Acquire, Encode, Executor, Postgres, Type};
 
 use crate::database::{DatabaseError, ModelExt, Result, name, transaction};
 use crate::errors::KromerError;
