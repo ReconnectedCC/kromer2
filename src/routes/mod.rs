@@ -1,6 +1,6 @@
 mod internal;
 mod krist;
-mod not_found;
+pub mod not_found;
 mod v1;
 
 use actix_web::{HttpResponse, get, web};

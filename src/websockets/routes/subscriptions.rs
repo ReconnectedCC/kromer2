@@ -29,7 +29,6 @@ pub async fn subscribe(
             ok: Some(true),
             id: msg_id,
             r#type: WebSocketMessageInner::Response {
-                responding_to: "subscribe".to_owned(),
                 data: WebSocketMessageResponse::Subscribe {
                     subscription_level: subscription_list,
                 },
@@ -69,7 +68,6 @@ pub async fn unsubscribe(
             ok: Some(true),
             id: msg_id,
             r#type: WebSocketMessageInner::Response {
-                responding_to: "subscribe".to_owned(),
                 data: WebSocketMessageResponse::Subscribe {
                     subscription_level: subscription_list,
                 },
@@ -104,7 +102,6 @@ pub async fn get_subscription_level(
         ok: Some(true),
         id: msg_id,
         r#type: WebSocketMessageInner::Response {
-            responding_to: "get_subscription_level".to_owned(),
             data: WebSocketMessageResponse::GetSubscriptionLevel {
                 subscription_level: subscription_list,
             },
@@ -131,7 +128,6 @@ pub async fn get_valid_subscription_levels(msg_id: Option<usize>) -> WebSocketMe
         ok: Some(true),
         id: msg_id,
         r#type: WebSocketMessageInner::Response {
-            responding_to: "get_valid_subscription_levels".to_owned(),
             data: WebSocketMessageResponse::GetValidSubscriptionLevels {
                 valid_subscription_levels: subscription_list,
             },

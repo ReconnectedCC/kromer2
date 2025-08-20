@@ -148,7 +148,7 @@ async fn name_register(
     state: web::Data<AppState>,
     websocket_server: web::Data<WebSocketServer>,
     name: web::Path<String>,
-    details: web::Json<Option<RegisterNameRequest>>,
+    details: Option<web::Json<RegisterNameRequest>>,
 ) -> Result<HttpResponse, KristError> {
     let pool = &state.pool;
     let websocket_server = websocket_server.into_inner();
@@ -156,16 +156,15 @@ async fn name_register(
     let name = name.into_inner().trim().to_lowercase();
     let new_name_cost = Decimal::new(MINING_CONSTANTS.name_cost, 0);
 
-    let private_key = details
-        .as_ref()
-        .map(|json_details| json_details.private_key.clone());
-
-    // Manual error handling here
-    if private_key.is_none() {
-        return Err(KristError::Generic(GenericError::MissingParameter(
-            "privatekey".to_string(),
-        )));
-    }
+    let private_key = details.map(|request| request.0.private_key);
+    let private_key = match private_key {
+        Some(key) => key,
+        None => {
+            return Err(KristError::Generic(GenericError::MissingParameter(
+                "privatekey".to_string(),
+            )));
+        }
+    };
 
     if !validation::is_valid_name(&name, false) {
         return Err(KristError::Generic(GenericError::InvalidParameter(
@@ -173,12 +172,13 @@ async fn name_register(
         )));
     }
 
-    let verify_addr_resp = Wallet::verify_address(
-        pool,
-        // Unwrap should be okay
-        private_key.unwrap().clone(),
-    )
-    .await?;
+    let mut tx = pool.begin().await?;
+
+    if let Some(name) = Name::fetch_by_name(&mut *tx, &name).await? {
+        return Err(KristError::Name(NameError::NameTaken(name.name)));
+    }
+
+    let verify_addr_resp = Wallet::verify_address(&mut *tx, &private_key).await?;
 
     if !verify_addr_resp.authed {
         tracing::info!(
@@ -187,8 +187,6 @@ async fn name_register(
         );
         return Err(KristError::Address(AddressError::AuthFailed));
     }
-
-    // TODO: Rate limit check. Apply a 2x cost to name events
 
     // Reject insufficient funds
     if verify_addr_resp.model.balance < new_name_cost {
@@ -204,14 +202,14 @@ async fn name_register(
     // Create the transaction
     let creation_data = TransactionCreateData {
         from: verify_addr_resp.model.address.clone(),
-        to: "name".to_string(),
+        to: "serverwelf".to_string(),
         name: Some(name.clone()),
         amount: new_name_cost,
         transaction_type: TransactionType::NamePurchase,
         ..Default::default()
     };
 
-    let transaction = Transaction::create_no_update(pool, creation_data).await?;
+    let transaction = Transaction::create_no_update(&mut *tx, creation_data).await?;
     tracing::info!(
         "Created transaction for name purchase with ID {}",
         transaction.id
@@ -223,11 +221,13 @@ async fn name_register(
     websocket_server.broadcast_event(event).await;
 
     // Create the new name
-    let name = Name::create(pool, name.clone(), updated_wallet.address).await?;
+    let name = Name::create(&mut *tx, name.clone(), verify_addr_resp.model.address).await?;
     let response = NameResponse {
         ok: true,
         name: name.into(),
     };
+
+    tx.commit().await?;
 
     Ok(HttpResponse::Ok().json(response))
 }

@@ -5,7 +5,6 @@ use sqlx::{Acquire, Encode, Executor, Pool, Postgres, Type};
 
 use crate::database::{DatabaseError, ModelExt, Result, name, transaction};
 use crate::errors::KromerError;
-use crate::models::krist::transactions::AddressTransactionQuery;
 use crate::routes::PaginationParams;
 use crate::utils::crypto;
 
@@ -107,9 +106,10 @@ impl<'q> Model {
     }
 
     #[tracing::instrument(skip(pool))]
-    pub async fn verify_address<S>(pool: &Pool<Postgres>, private_key: S) -> Result<VerifyResponse>
+    pub async fn verify_address<A, S>(pool: A, private_key: S) -> Result<VerifyResponse>
     where
         S: AsRef<str> + std::fmt::Debug,
+        A: 'q + Acquire<'q, Database = Postgres>,
     {
         let private_key = private_key.as_ref();
         let mut tx = pool.acquire().await?;
@@ -161,15 +161,16 @@ impl<'q> Model {
             .await
     }
 
-    pub async fn total_transactions<E>(&self, executor: E) -> sqlx::Result<i64>
+    pub async fn total_transactions<E>(&self, executor: E, exclude_mined: bool) -> sqlx::Result<i64>
     where
         E: 'q + Executor<'q, Database = Postgres>,
     {
-        let q = r#"
-            SELECT COUNT(*)
-            FROM transactions
-            WHERE "from" = $1 OR "to" = $1;
-    "#;
+        let q = match exclude_mined {
+            true => {
+                r#"SELECT COUNT(*) FROM transactions WHERE ("from" = $1 OR "to" = $1) AND transaction_type != 'mined';"#
+            }
+            false => r#"SELECT COUNT(*) FROM transactions  WHERE "from" = $1 OR "to" = $1;"#,
+        };
 
         sqlx::query_scalar(q)
             .bind(&self.address)
@@ -180,21 +181,23 @@ impl<'q> Model {
     pub async fn transactions<E>(
         &self,
         pool: E,
-        query: &AddressTransactionQuery,
+        query: &PaginationParams,
     ) -> sqlx::Result<Vec<transaction::Model>>
     where
         E: 'q + Executor<'q, Database = Postgres>,
     {
-        let limit = query.limit.unwrap_or(50);
+        let limit = query.limit.unwrap_or(50).clamp(1, 1000);
         let offset = query.offset.unwrap_or(0);
-        let limit = limit.clamp(1, 1000);
 
-        let q = r#"
-        SELECT * FROM transactions
-        WHERE "from" = $1 OR "to" = $1
-        ORDER BY date DESC
-        LIMIT $2 OFFSET $3;
-    "#;
+        let q = match query.exclude_mined {
+            Some(true) => {
+                r#"SELECT * FROM transactions WHERE ("from" = $1 OR "to" = $1) AND transaction_type != 'mined' ORDER BY date DESC LIMIT $2 OFFSET $3;"#
+            }
+            _ => {
+                r#"SELECT * FROM transactions WHERE "from" = $1 OR "to" = $1 ORDER BY date DESC LIMIT $2 OFFSET $3;"#
+            }
+        };
+
         sqlx::query_as(q)
             .bind(&self.address)
             .bind(limit)

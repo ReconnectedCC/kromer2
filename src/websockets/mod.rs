@@ -42,8 +42,8 @@ impl Default for WebSocketServer {
 impl WebSocketServer {
     pub fn new() -> Self {
         let inner = WebSocketServerInner {
-            sessions: DashMap::with_capacity(5),
-            pending_tokens: DashMap::with_capacity(5),
+            sessions: DashMap::with_capacity(100),
+            pending_tokens: DashMap::with_capacity(50),
         };
 
         Self {
@@ -51,12 +51,14 @@ impl WebSocketServer {
         }
     }
 
+    #[tracing::instrument(skip_all, fields(address = data.address))]
     pub async fn insert_session(&self, uuid: Uuid, session: Session, data: WebSocketTokenData) {
         let subscriptions = DashSet::from_iter([
             WebSocketSubscriptionType::OwnTransactions,
             WebSocketSubscriptionType::Blocks,
         ]);
 
+        tracing::debug!("Inserting new session into session map");
         let session_data = WebSocketSessionData {
             address: data.address,
             private_key: data.private_key,
@@ -79,16 +81,17 @@ impl WebSocketServer {
 
         let uuid = Uuid::new_v4();
 
-        let _ = inner.pending_tokens.insert(uuid, token_data);
         tracing::debug!("Inserting token {uuid} into cache");
+        let token_data = inner.pending_tokens.insert(uuid, token_data);
+        drop(token_data); // Drop manually to ensure the hashmap bucket is no longer locked.
 
         actix_web::rt::spawn(async move {
             time::sleep(TOKEN_EXPIRATION).await;
 
+            // I don't think that this if statement would ever fail? considering we literally just put the fucking token in the map, lol.
             let inner_mutex = inner_clone.lock().await;
-            if inner_mutex.pending_tokens.contains_key(&uuid) {
-                tracing::info!("Removing token {uuid}, expired");
-                inner_mutex.pending_tokens.remove(&uuid);
+            if let Some(_) = inner_mutex.pending_tokens.remove(&uuid) {
+                tracing::info!("Removed expired token {uuid}");
             }
         });
 
@@ -101,7 +104,7 @@ impl WebSocketServer {
     ) -> Result<WebSocketTokenData, errors::WebSocketServerError> {
         let inner = self.inner.lock().await;
 
-        tracing::debug!("Using token {uuid}");
+        tracing::debug!("Removing token from cache");
 
         let (_uuid, token) = inner
             .pending_tokens
@@ -111,24 +114,26 @@ impl WebSocketServer {
         Ok(token)
     }
 
+    #[tracing::instrument(skip_all, fields(event = ?event))]
     pub async fn subscribe_to_event(&self, uuid: &Uuid, event: WebSocketSubscriptionType) {
         let inner = self.inner.lock().await;
 
         let entry = inner.sessions.get_mut(uuid);
         if let Some(data) = entry {
-            tracing::info!("Session {uuid} subscribed to event {event}");
+            tracing::info!("Session subscribed to event");
             data.subscriptions.insert(event);
         } else {
             tracing::info!("Tried to subscribe to event {event} but found a non-existent session");
         }
     }
 
+    #[tracing::instrument(skip_all, fields(event = ?event))]
     pub async fn unsubscribe_from_event(&self, uuid: &Uuid, event: &WebSocketSubscriptionType) {
         let inner = self.inner.lock().await;
 
         let entry = inner.sessions.get_mut(uuid);
         if let Some(data) = entry {
-            tracing::info!("Session {uuid} unsubscribed from event {event}");
+            tracing::info!("Session unsubscribed from event");
             data.subscriptions.remove(event);
         }
     }
@@ -201,13 +206,13 @@ impl WebSocketServer {
     /// Broadcast a message to all connected clients
     pub async fn broadcast(&self, msg: impl Into<ByteString>) {
         let msg = msg.into();
+        tracing::debug!("Sending msg: {msg}");
 
         let inner = self.inner.lock().await;
         let mut futures = FuturesUnordered::new();
 
         for mut entry in inner.sessions.iter_mut() {
             let msg = msg.clone();
-            tracing::info!("Sending msg: {msg}");
 
             futures.push(async move {
                 let (uuid, data) = entry.pair_mut();

@@ -29,13 +29,10 @@ pub async fn transaction_list(
     let params = query.into_inner();
     let pool = &state.pool;
 
-    let limit = params.limit.unwrap_or(50);
-    let offset = params.offset.unwrap_or(0);
-
     let mut tx = pool.begin().await?;
 
-    let total_transaction = Transaction::total_count(&mut *tx).await?;
-    let transactions = Transaction::fetch_all(&mut *tx, limit, offset).await?;
+    let total_transaction = Transaction::total_count_no_mined(&mut *tx, &params).await?;
+    let transactions = Transaction::fetch_all_no_mined(&mut *tx, &params).await?;
 
     tx.commit().await?;
 
@@ -77,6 +74,8 @@ async fn transaction_create(
         )));
     }
 
+    let mut tx = pool.begin().await?;
+
     let sender_verify_response = Wallet::verify_address(pool, details.private_key).await?;
     if !sender_verify_response.authed {
         return Err(KristError::Address(AddressError::AuthFailed));
@@ -97,14 +96,14 @@ async fn transaction_create(
             // Cursed but makes borrow checker happy, lol.
             let name = sent_name.as_ref().map(|a| a.as_str()).unwrap_or_default();
 
-            let name = Name::fetch_by_name(pool, name)
+            let name = Name::fetch_by_name(&mut *tx, name)
                 .await?
                 .ok_or_else(|| KristError::Name(NameError::NameNotFound(details.to.clone())))?;
 
-            let owner = name.owner(pool).await?;
+            let owner = name.owner(&mut *tx).await?;
             owner.ok_or_else(|| KristError::Name(NameError::NameNotFound(details.to.clone())))?
         }
-        false => Wallet::fetch_by_address(pool, &details.to)
+        false => Wallet::fetch_by_address(&mut *tx, &details.to)
             .await?
             .ok_or_else(|| KristError::Address(AddressError::NotFound(details.to.clone())))?,
     };
@@ -131,8 +130,10 @@ async fn transaction_create(
         ..Default::default()
     };
 
-    let transaction = Transaction::create(pool, creation_data).await?;
+    let transaction = Transaction::create(&mut *tx, creation_data).await?;
     let transaction_json: TransactionJson = transaction.into();
+
+    tx.commit().await?;
 
     let event = WebSocketMessage::new_event(WebSocketEvent::Transaction {
         transaction: transaction_json.clone(),
@@ -155,7 +156,7 @@ async fn transaction_latest(
     let params = query.into_inner();
     let pool = &state.pool;
 
-    let total = Transaction::total_count(pool).await?;
+    let total = Transaction::total_count_no_mined(pool, &params).await?;
     let transactions = Transaction::sorted_by_date(pool, &params).await?;
 
     let transactions: Vec<TransactionJson> =

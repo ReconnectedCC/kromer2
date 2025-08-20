@@ -9,6 +9,7 @@ use crate::models::krist::websockets::{
 };
 use crate::websockets::WebSocketServer;
 
+#[tracing::instrument(skip_all)]
 pub async fn perform_login(
     pool: &Pool<Postgres>,
     server: &WebSocketServer,
@@ -34,11 +35,12 @@ pub async fn perform_login(
                 session.address = wallet.address.clone();
                 session.private_key = Some(private_key);
 
+                tracing::debug!("Session successfully logged in");
+
                 WebSocketMessage {
                     ok: Some(true),
                     id: msg_id,
                     r#type: WebSocketMessageInner::Response {
-                        responding_to: "login".to_owned(),
                         data: WebSocketMessageResponse::Login {
                             is_guest: false,
                             address: Some(wallet.into()),
@@ -50,7 +52,6 @@ pub async fn perform_login(
                     ok: Some(true),
                     id: msg_id,
                     r#type: WebSocketMessageInner::Response {
-                        responding_to: "login".to_owned(),
                         data: WebSocketMessageResponse::Login {
                             is_guest: true,
                             address: None,
@@ -63,7 +64,6 @@ pub async fn perform_login(
             ok: Some(true),
             id: msg_id,
             r#type: WebSocketMessageInner::Response {
-                responding_to: "login".to_owned(),
                 data: WebSocketMessageResponse::Login {
                     is_guest: true,
                     address: None,
@@ -91,7 +91,6 @@ pub async fn perform_logout(
         ok: Some(true),
         id: msg_id,
         r#type: WebSocketMessageInner::Response {
-            responding_to: "logout".to_owned(),
             data: WebSocketMessageResponse::Logout { is_guest: true },
         },
     }

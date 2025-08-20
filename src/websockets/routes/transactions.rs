@@ -12,6 +12,7 @@ use crate::{
 use crate::database::transaction::Model as Transaction;
 use crate::database::wallet::Model as Wallet;
 
+#[tracing::instrument(skip(pool, server, msg_id, private_key))]
 pub async fn make_transaction(
     pool: &Pool<Postgres>,
     private_key: String,
@@ -130,7 +131,6 @@ pub async fn make_transaction(
         ok: Some(true),
         id: msg_id,
         r#type: WebSocketMessageInner::Response {
-            responding_to: "make_transaction".to_owned(),
             data: WebSocketMessageResponse::MakeTransaction {
                 transaction: transaction.into(),
             },

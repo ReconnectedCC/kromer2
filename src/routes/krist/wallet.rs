@@ -9,9 +9,7 @@ use crate::models::krist::addresses::{
     AddressGetQuery, AddressJson, AddressListResponse, AddressResponse,
 };
 use crate::models::krist::names::{NameJson, NameListResponse};
-use crate::models::krist::transactions::{
-    AddressTransactionQuery, TransactionJson, TransactionListResponse,
-};
+use crate::models::krist::transactions::{TransactionJson, TransactionListResponse};
 use crate::routes::PaginationParams;
 
 #[get("")]
@@ -96,7 +94,7 @@ async fn wallet_richest(
 async fn wallet_get_transactions(
     state: web::Data<AppState>,
     address: web::Path<String>,
-    params: web::Query<AddressTransactionQuery>,
+    params: web::Query<PaginationParams>,
 ) -> Result<HttpResponse, KristError> {
     let address = address.into_inner();
     let params = params.into_inner();
@@ -108,7 +106,10 @@ async fn wallet_get_transactions(
         .await?
         .ok_or_else(|| KristError::Address(AddressError::NotFound(address)))?;
 
-    let total_transactions = wallet.total_transactions(&mut *tx).await?;
+    let total_transactions = wallet
+        .total_transactions(&mut *tx, params.exclude_mined.unwrap_or(false))
+        .await?;
+
     let transactions = wallet.transactions(&mut *tx, &params).await?;
 
     tx.commit().await?;

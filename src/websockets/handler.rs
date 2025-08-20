@@ -12,6 +12,7 @@ use crate::{
     websockets::routes,
 };
 
+#[tracing::instrument(skip_all, fields(uuid = ?uuid))]
 pub async fn process_text_msg(
     pool: &Pool<Postgres>,
     server: &WebSocketServer,
@@ -27,8 +28,7 @@ pub async fn process_text_msg(
     let parsed_msg = match parsed_msg_result {
         Ok(value) => value,
         Err(err) => {
-            tracing::error!("Serde error: {}", err);
-            tracing::info!("Could not parse JSON for session {uuid}");
+            tracing::error!("Could not parse JSON: {err}");
             return Err(KromerError::WebSocket(WebSocketError::JsonParseRead));
         }
     };

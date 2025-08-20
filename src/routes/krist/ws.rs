@@ -13,7 +13,6 @@ use uuid::Uuid;
 
 use crate::AppState;
 use crate::database::wallet::Model as Wallet;
-use crate::errors::krist::KristErrorExt;
 use crate::errors::krist::{KristError, address::AddressError, websockets::WebSocketError};
 use crate::models::krist::websockets::{WebSocketMessage, WebSocketMessageInner};
 use crate::websockets::types::common::WebSocketTokenData;
@@ -67,7 +66,7 @@ pub async fn setup_ws(
 }
 
 #[get("/gateway/{token}")]
-#[tracing::instrument(name = "ws_gateway_route", level = "info", fields(token = *token), skip_all,)]
+#[tracing::instrument(name = "ws_gateway_route", level = "info", fields(token = *token), skip_all)]
 pub async fn gateway(
     req: HttpRequest,
     body: web::Payload,
@@ -77,46 +76,20 @@ pub async fn gateway(
 ) -> Result<HttpResponse, actix_web::Error> {
     let server = server.into_inner(); // lol
     let token = token.into_inner();
-    tracing::info!("Request with token string: {token}");
+
+    // TODO: Actually do what krist does, which is:
+    //       - Let websocket connect
+    //       - Send error over
+    //       - Close connection
+    let uuid = Uuid::from_str(&token)
+        .map_err(|_| KristError::WebSocket(WebSocketError::InvalidWebsocketToken))?;
+
+    let data = server
+        .use_token(&uuid)
+        .await
+        .map_err(|_| KristError::WebSocket(WebSocketError::InvalidWebsocketToken))?;
 
     let (response, mut session, stream) = actix_ws::handle(&req, body)?;
-
-    let uuid_result = Uuid::from_str(&token)
-        .map_err(|_| KristError::WebSocket(WebSocketError::InvalidWebsocketToken));
-
-    let uuid = match uuid_result {
-        Ok(uuid) => uuid,
-        Err(err) => {
-            let error = json!({
-                "ok": false,
-                "error": err.error_type(),
-                "message": err.to_string(),
-                "type": "error"
-            });
-
-            let _ = session.text(error.to_string()).await;
-
-            return Ok(response);
-        }
-    };
-
-    let data_result = server.use_token(&uuid).await;
-
-    let data = match data_result {
-        Ok(data) => data,
-        Err(_err) => {
-            let error = json!({
-                "ok": false,
-                "error": "invalid_websocket_token",
-                "message": "Invalid websocket token",
-                "type": "error"
-            });
-
-            let _ = session.text(error.to_string()).await;
-
-            return Ok(response);
-        }
-    };
 
     let mut stream = stream
         .max_frame_size(64 * 1024)
@@ -139,6 +112,7 @@ pub async fn gateway(
         loop {
             interval.tick().await;
             if session2.ping(b"").await.is_err() {
+                tracing::error!("Failed to send ping message to session");
                 break;
             }
 
@@ -216,6 +190,7 @@ pub async fn gateway(
                 }
 
                 AggregatedMessage::Pong(_) => {
+                    tracing::trace!("Received a pong back! :D");
                     *alive.lock().await = Instant::now();
                 }
 
