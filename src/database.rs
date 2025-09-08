@@ -1,4 +1,5 @@
 pub mod name;
+pub mod paginated;
 pub mod player;
 pub mod transaction;
 pub mod wallet;

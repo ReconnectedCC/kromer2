@@ -193,16 +193,23 @@ async fn name_register(
         return Err(KristError::Transaction(TransactionError::InsufficientFunds));
     }
 
+    // Update the wallet balance first (deduct the name cost)
+    let _updated_wallet = verify_addr_resp
+        .model
+        .update_balance(pool, -new_name_cost)
+        .await?;
+
     // Create the transaction
     let creation_data = TransactionCreateData {
         from: verify_addr_resp.model.address.clone(),
         to: "serverwelf".to_string(),
+        name: Some(name.clone()),
         amount: new_name_cost,
         transaction_type: TransactionType::NamePurchase,
         ..Default::default()
     };
 
-    let transaction = Transaction::create(&mut *tx, creation_data).await?;
+    let transaction = Transaction::create_no_update(&mut *tx, creation_data).await?;
     tracing::info!(
         "Created transaction for name purchase with ID {}",
         transaction.id
