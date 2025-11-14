@@ -17,6 +17,8 @@ use crate::{
     models::krist::names::NameDataUpdateBody, routes::PaginationParams, utils::validation,
 };
 
+use crate::database::paginated::PaginatedResult;
+
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct Model {
     pub id: i32,
@@ -251,5 +253,79 @@ impl<'q> Model {
         tx.commit().await?;
 
         Ok(updated_name)
+    }
+
+    pub async fn lookup_names(
+        pool: &Pool<Postgres>,
+        address_list: Option<Vec<String>>,
+        limit: i64,
+        offset: i64,
+        order_by: &str,
+        order: &str,
+    ) -> Result<PaginatedResult<Model>> {
+        // Validate order_by parameter against allowed fields
+        let order_by = match order_by {
+            "name"
+            | "owner"
+            | "original_owner"
+            | "registered"
+            | "updated"
+            | "transferred"
+            | "transferredOrRegistered"
+            | "a"
+            | "unpaid" => order_by,
+            _ => "name",
+        };
+
+        // Validate order parameter against allowed fields
+        let order = match order.to_uppercase().as_str() {
+            "ASC" | "DESC" => order.to_uppercase(),
+            _ => "ASC".to_string(),
+        };
+
+        // Build the ORDER BY clause
+        let order_clause = match order_by {
+            "transferredOrRegistered" => {
+                format!("COALESCE(last_transfered, time_registered) {order}")
+            }
+            "registered" => format!("time_registered {order}"),
+            "transferred" => format!("last_transfered {order}"),
+            other => format!("{other} {order}"),
+        };
+
+        // Count query
+        let count_sql = r#"
+            SELECT COUNT(*) as total
+            FROM names
+            WHERE ($1::text[] IS NULL or owner = ANY($1::text[]))
+            "#;
+
+        // Main query
+        let main_query = format!(
+            r#"
+            SELECT *
+            FROM names
+            WHERE ($1::text[] IS NULL OR owner = ANY($1::text[]))
+            ORDER BY {}
+            LIMIT $2 OFFSET $3;
+            "#,
+            order_clause
+        );
+
+        // Execute count query
+        let total: i64 = sqlx::query_scalar(count_sql)
+            .bind(&address_list)
+            .fetch_one(pool)
+            .await?;
+
+        // Execute main query
+        let rows: Vec<Model> = sqlx::query_as::<_, Model>(&main_query)
+            .bind(&address_list)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool)
+            .await?;
+
+        Ok(PaginatedResult::new(rows, total))
     }
 }

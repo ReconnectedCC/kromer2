@@ -162,7 +162,7 @@ impl<'q> Model {
         E: 'q + Executor<'q, Database = Postgres>,
     {
         let metadata = creation_data.metadata.unwrap_or_default();
-        let q = r#"INSERT INTO transactions(amount, "from", "to", metadata, transaction_type, date) VALUES ($1, $2, $3, $4, $5, NOW()) RETURNING *"#;
+        let q = r#"INSERT INTO transactions(amount, "from", "to", metadata, transaction_type, date, name) VALUES ($1, $2, $3, $4, $5, NOW(), $6) RETURNING *"#;
 
         sqlx::query_as(q)
             .bind(creation_data.amount)
@@ -170,6 +170,7 @@ impl<'q> Model {
             .bind(&creation_data.to)
             .bind(metadata)
             .bind(creation_data.transaction_type)
+            .bind(&creation_data.name)
             .fetch_one(executor)
             .await
             .map_err(DatabaseError::Sqlx)
@@ -256,6 +257,222 @@ impl<'q> Model {
             .fetch_all(pool)
             .await
             .map_err(DatabaseError::Sqlx)
+    }
+
+    pub async fn fetch_name_history(
+        pool: &Pool<Postgres>,
+        name: &str,
+        limit: i64,
+        offset: i64,
+        order_by: &str,
+        order: &str,
+    ) -> Result<(Vec<Model>, usize)> {
+        let limit = limit.clamp(1, 1000);
+
+        // Validate order_by parameter against allowed fields
+        let order_by = match order_by {
+            "id" | "from" | "to" | "value" | "time" | "sent_name" | "sent_metaname" => {
+                // Map "time" to "date" since that's our actual column name
+                if order_by == "time" { "date" } else { order_by }
+            }
+            _ => "id",
+        };
+
+        let order = match order.to_uppercase().as_str() {
+            "ASC" | "DESC" => order.to_uppercase(),
+            _ => "ASC".to_string(),
+        };
+
+        // Count query - only name-related transactions
+        let count_query = r#"
+            SELECT COUNT(*) as total
+            FROM transactions
+            WHERE (name = $1 OR sent_name = $1)
+            AND transaction_type IN ('name_purchase', 'name_a_record', 'name_transfer')
+        "#;
+
+        let total: i64 = sqlx::query_scalar(count_query)
+            .bind(name)
+            .fetch_one(pool)
+            .await?;
+
+        // Main query - only name-related transactions
+        let query = format!(
+            r#"
+            SELECT *
+            FROM transactions
+            WHERE (name = $1 OR sent_name = $1)
+            AND transaction_type IN ('name_purchase', 'name_a_record', 'name_transfer')
+            ORDER BY {} {}
+            LIMIT $2 OFFSET $3
+        "#,
+            order_by, order
+        );
+
+        let rows = sqlx::query_as(&query)
+            .bind(name)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool)
+            .await?;
+
+        Ok((rows, total as usize))
+    }
+
+    pub async fn fetch_by_sent_name(
+        pool: &Pool<Postgres>,
+        sent_name: &str,
+        limit: i64,
+        offset: i64,
+        order_by: &str,
+        order: &str,
+    ) -> Result<(Vec<Model>, usize)> {
+        let limit = limit.clamp(1, 1000);
+
+        // Validate order_by and order parameters
+        let order_by = match order_by {
+            "id" | "amount" | "date" | "from" | "to" => order_by,
+            _ => "id",
+        };
+        let order = match order.to_uppercase().as_str() {
+            "ASC" | "DESC" => order.to_uppercase(),
+            _ => "ASC".to_string(),
+        };
+
+        // Count query - match both name and sent_name columns
+        let count_query = r#"
+            SELECT COUNT(*) as total
+            FROM transactions
+            WHERE name = $1 OR sent_name = $1
+        "#;
+
+        let total: i64 = sqlx::query_scalar(count_query)
+            .bind(sent_name)
+            .fetch_one(pool)
+            .await?;
+
+        // Main query with dynamic ordering - match both name and sent_name columns
+        let query = format!(
+            r#"
+            SELECT *
+            FROM transactions
+            WHERE name = $1 OR sent_name = $1
+            ORDER BY {} {}
+            LIMIT $2 OFFSET $3
+            "#,
+            order_by, order
+        );
+
+        let rows = sqlx::query_as(&query)
+            .bind(sent_name)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool)
+            .await?;
+
+        Ok((rows, total as usize))
+    }
+
+    pub async fn lookup_transactions(
+        pool: &Pool<Postgres>,
+        address_list: Option<Vec<String>>,
+        limit: i64,
+        offset: i64,
+        order_by: &str,
+        order: &str,
+        include_mined: bool,
+    ) -> Result<(
+        Vec<crate::models::krist::transactions::TransactionJson>,
+        usize,
+    )> {
+        use crate::models::krist::transactions::TransactionJson;
+
+        let limit = limit.clamp(1, 1000);
+
+        // Validate order_by parameter against allowed fields
+        let order_by = match order_by {
+            "id" | "from" | "to" | "amount" | "date" | "sent_name" | "sent_metaname" => {
+                // Map "time" to "date" since that's our actual column name
+                if order_by == "time" { "date" } else { order_by }
+            }
+            _ => "id",
+        };
+
+        let order = match order.to_uppercase().as_str() {
+            "ASC" | "DESC" => order.to_uppercase(),
+            _ => "ASC".to_string(),
+        };
+
+        if let Some(addresses) = address_list {
+            // Build query for all addresses at once
+            let mut query_conditions = Vec::new();
+            let mut bind_values = Vec::new();
+
+            // Create OR conditions for each address
+            for (i, address) in addresses.iter().enumerate() {
+                let param_num = i + 1;
+                query_conditions.push(format!(
+                    "(\"from\" = ${} OR \"to\" = ${})",
+                    param_num, param_num
+                ));
+                bind_values.push(address.as_str());
+            }
+
+            let address_condition = format!("({})", query_conditions.join(" OR "));
+            let mut where_conditions = vec![address_condition];
+
+            // Add mined filter if includeMined is false
+            if !include_mined {
+                where_conditions.push("transaction_type != 'mined'".to_string());
+            }
+
+            let where_clause = where_conditions.join(" AND ");
+            let limit_param = bind_values.len() + 1;
+            let offset_param = bind_values.len() + 2;
+
+            let query = format!(
+                r#"
+                SELECT *
+                FROM transactions
+                WHERE {}
+                ORDER BY {} {}
+                LIMIT {} OFFSET {}
+                "#,
+                where_clause, order_by, order, limit_param, offset_param
+            );
+
+            let mut query_builder = sqlx::query_as(&query);
+            for address in bind_values {
+                query_builder = query_builder.bind(address);
+            }
+            query_builder = query_builder.bind(limit).bind(offset);
+
+            let transactions: Vec<Model> = query_builder.fetch_all(pool).await?;
+
+            // Count total matching transactions
+            let count_query = format!(
+                r#"
+                SELECT COUNT(*) as total
+                FROM transactions
+                WHERE {}
+                "#,
+                where_clause
+            );
+
+            let mut count_query_builder = sqlx::query_scalar(&count_query);
+            for address in addresses.iter() {
+                count_query_builder = count_query_builder.bind(address.as_str());
+            }
+            let total: i64 = count_query_builder.fetch_one(pool).await?;
+
+            let json_transactions: Vec<TransactionJson> =
+                transactions.into_iter().map(|model| model.into()).collect();
+
+            Ok((json_transactions, total as usize))
+        } else {
+            // No addresses specified, return empty result
+            Ok((Vec::new(), 0))
+        }
     }
 }
 

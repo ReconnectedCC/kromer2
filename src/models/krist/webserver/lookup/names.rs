@@ -8,10 +8,9 @@ use crate::models::krist::{names::NameJson, transactions::TransactionJson};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LookupResponse {
     pub ok: bool,
-    pub found: usize,
-    #[serde(rename = "notFound")]
-    pub not_found: usize,
-    pub names: HashMap<String, NameJson>,
+    pub count: usize,
+    pub total: usize,
+    pub names: Vec<NameJson>,
 }
 
 /// All the transactions directly involving the given name. This is any transaction with the type `name_purchase`, `name_a_record` or `name_transfer`.
