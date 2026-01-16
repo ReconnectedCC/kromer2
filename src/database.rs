@@ -1,5 +1,6 @@
 pub mod name;
 pub mod player;
+pub mod subscriptions;
 pub mod transaction;
 pub mod wallet;
 
