@@ -103,9 +103,11 @@ async fn get_v2_address(query: web::Json<LoginDetails>) -> Result<HttpResponse, 
 async fn get_kromer_supply(state: web::Data<AppState>) -> Result<HttpResponse, KristError> {
     let pool = &state.pool;
 
-    let money_supply: Decimal = sqlx::query_scalar("SELECT COALESCE(SUM(balance), 0) FROM wallets WHERE address != 'serverwelf'")
-        .fetch_one(pool)
-        .await?;
+    let money_supply: Decimal = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(balance), 0) FROM wallets WHERE address != 'serverwelf'",
+    )
+    .fetch_one(pool)
+    .await?;
 
     Ok(HttpResponse::Ok().json(MoneySupplyResponse {
         ok: true,
