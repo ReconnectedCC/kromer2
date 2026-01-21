@@ -225,10 +225,10 @@ impl<'q> Model {
         A: Acquire<'q, Database = Postgres>,
     {
         let mut tx = conn.begin().await?;
-        let q = "UPDATE names SET owner = $2, last_updated = NOW(), last_transfered = NOW() WHERE owner = $1 RETURNING *";
+        let q = "UPDATE names SET owner = $2, last_updated = NOW(), last_transfered = NOW() WHERE name = $1 RETURNING *";
 
         let updated_name: Model = sqlx::query_as(q)
-            .bind(&self.owner)
+            .bind(&self.name)
             .bind(&new_owner_address)
             .fetch_one(&mut *tx)
             .await?;
