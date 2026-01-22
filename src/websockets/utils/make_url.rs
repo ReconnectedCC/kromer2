@@ -7,7 +7,7 @@ use crate::errors::KromerError;
 pub fn make_url(uuid: Uuid) -> Result<String, KromerError> {
     let args = get_args();
     let force_insecure = env::var("FORCE_WS_INSECURE").unwrap_or("true".to_owned());
-    let schema = if force_insecure == "true" {
+    let schema = if force_insecure == "true" || args.insecure {
         "ws"
     } else {
         "wss"
