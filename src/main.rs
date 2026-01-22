@@ -1,18 +1,34 @@
 use actix_cors::Cors;
 use actix_web::{App, HttpServer, middleware, web};
+use clap::Parser;
+use kromer::{AppState, Args, get_args, init_args, routes, websockets::WebSocketServer};
 use sqlx::postgres::PgPool;
 use std::env;
 
-use kromer::{AppState, routes, websockets::WebSocketServer};
-
 #[actix_web::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt::init();
-
+    let parsed_args = Args::parse();
+    init_args(parsed_args);
+    let args = get_args();
+    if !args.debug {
+        tracing_subscriber::fmt::init();
+    } else {
+        tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .init();
+        tracing::info!("Debug mode enabled");
+    }
     dotenvy::dotenv().ok();
 
-    let server_url = env::var("SERVER_URL").expect("SERVER_URL is not set in .env file");
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
+    let server_url = args.url.clone().unwrap_or_else(|| {
+        env::var("SERVER_URL")
+            .expect("SERVER_URL is not set in .env file or as command line argument (--url)")
+    });
+    let database_url = args.database_url.clone().unwrap_or_else(|| {
+        env::var("DATABASE_URL").expect(
+            "DATABASE_URL is not set in .env file or as command line argument (--database_url)",
+        )
+    });
 
     let pool = PgPool::connect(&database_url).await?;
 
