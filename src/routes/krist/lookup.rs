@@ -1,4 +1,4 @@
-mod addresses;
+pub mod addresses;
 // mod names;
 // mod transactions;
 

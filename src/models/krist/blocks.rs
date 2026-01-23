@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize, ToSchema)]
 pub struct BlockJson {
     pub height: f64,
     pub address: String,
@@ -11,7 +12,7 @@ pub struct BlockJson {
     pub difficulty: f64,
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize, ToSchema)]
 pub struct SubmitBlockResponse {
     pub address: super::addresses::AddressJson,
     pub block: BlockJson,

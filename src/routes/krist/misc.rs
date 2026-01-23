@@ -13,6 +13,14 @@ use crate::{
     utils::crypto,
 };
 
+#[utoipa::path(
+    post,
+    path = "/api/krist/login",
+    request_body = LoginDetails,
+    responses(
+        (status = 200, description = "Authenticate address", body = AddressAuthenticationResponse)
+    )
+)]
 #[post("/login")]
 async fn login_address(
     state: web::Data<AppState>,
@@ -31,6 +39,13 @@ async fn login_address(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/krist/motd",
+    responses(
+        (status = 200, description = "Get Message of the Day", body = DetailedMotdResponse)
+    )
+)]
 #[get("/motd")]
 async fn get_motd() -> HttpResponse {
     // This is by far the simplest fucking route in all of Kromer.
@@ -78,6 +93,13 @@ async fn get_motd() -> HttpResponse {
     HttpResponse::Ok().json(motd)
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/krist/walletversion",
+    responses(
+        (status = 200, description = "Get Wallet Version", body = WalletVersionResponse)
+    )
+)]
 #[get("/walletversion")]
 async fn get_walletversion() -> HttpResponse {
     let response = WalletVersionResponse {
@@ -88,6 +110,14 @@ async fn get_walletversion() -> HttpResponse {
     HttpResponse::Ok().json(response)
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/krist/v2",
+    request_body = LoginDetails,
+    responses(
+        (status = 200, description = "Get V2 Address", body = PrivateKeyAddressResponse)
+    )
+)]
 #[post("/v2")]
 async fn get_v2_address(query: web::Json<LoginDetails>) -> Result<HttpResponse, KristError> {
     let query = query.into_inner();
@@ -99,6 +129,13 @@ async fn get_v2_address(query: web::Json<LoginDetails>) -> Result<HttpResponse, 
     Ok(HttpResponse::Ok().json(response))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/krist/supply",
+    responses(
+        (status = 200, description = "Get Money Supply", body = MoneySupplyResponse)
+    )
+)]
 #[get("/supply")]
 async fn get_kromer_supply(state: web::Data<AppState>) -> Result<HttpResponse, KristError> {
     let pool = &state.pool;

@@ -3,17 +3,21 @@
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::Serialize;
+use utoipa::ToSchema;
 
 use crate::database::wallet;
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
 pub struct Wallet {
     pub id: i32,
     pub address: String,
+    #[schema(value_type = String, example = "100.50")]
     pub balance: Decimal,
     pub created_at: DateTime<Utc>,
     pub locked: bool,
+    #[schema(value_type = String, example = "500.00")]
     pub total_in: Decimal,
+    #[schema(value_type = String, example = "200.00")]
     pub total_out: Decimal,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]

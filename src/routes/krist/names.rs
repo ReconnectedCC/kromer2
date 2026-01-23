@@ -20,6 +20,14 @@ use crate::utils::validation;
 use crate::websockets::WebSocketServer;
 use crate::{AppState, errors::krist::KristError, routes::PaginationParams};
 
+#[utoipa::path(
+    get,
+    path = "/api/krist/names",
+    params(PaginationParams),
+    responses(
+        (status = 200, description = "List names", body = NameListResponse)
+    )
+)]
 #[get("")]
 async fn name_list(
     state: web::Data<AppState>,
@@ -50,6 +58,13 @@ async fn name_list(
     Ok(HttpResponse::Ok().json(response))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/krist/names/cost",
+    responses(
+        (status = 200, description = "Get Name Cost", body = NameCostResponse)
+    )
+)]
 #[get("/cost")]
 async fn name_cost() -> Result<HttpResponse, KristError> {
     let response = NameCostResponse {
@@ -59,6 +74,16 @@ async fn name_cost() -> Result<HttpResponse, KristError> {
     Ok(HttpResponse::Ok().json(response))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/krist/names/check/{name}",
+    params(
+        ("name", description = "Name to check")
+    ),
+    responses(
+        (status = 200, description = "Check Name Availability", body = NameAvailablityResponse)
+    )
+)]
 #[get("/check/{name}")]
 async fn name_check(
     state: web::Data<AppState>,
@@ -84,6 +109,13 @@ async fn name_check(
     Ok(HttpResponse::Ok().json(response))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/krist/names/bonus",
+    responses(
+        (status = 200, description = "Get Name Bonus", body = NameBonusResponse)
+    )
+)]
 #[get("/bonus")]
 async fn name_bonus(state: web::Data<AppState>) -> Result<HttpResponse, KristError> {
     let pool = &state.pool;
@@ -97,6 +129,14 @@ async fn name_bonus(state: web::Data<AppState>) -> Result<HttpResponse, KristErr
     Ok(HttpResponse::Ok().json(response))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/krist/names/new",
+    params(PaginationParams),
+    responses(
+        (status = 200, description = "List new names", body = NameListResponse)
+    )
+)]
 #[get("/new")]
 async fn name_new(
     state: web::Data<AppState>,
@@ -124,6 +164,17 @@ async fn name_new(
     Ok(HttpResponse::Ok().json(response))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/krist/names/{name}",
+    params(
+        ("name", description = "Name to fetch")
+    ),
+    responses(
+        (status = 200, description = "Get Name", body = NameResponse),
+        (status = 404, description = "Name not found")
+    )
+)]
 #[get("/{name}")]
 async fn name_get(
     state: web::Data<AppState>,
@@ -143,6 +194,18 @@ async fn name_get(
         .ok_or_else(|| KristError::Name(NameError::NameNotFound(name)))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/krist/names/{name}",
+    params(
+        ("name", description = "Name to register")
+    ),
+    request_body = Option<RegisterNameRequest>,
+    responses(
+        (status = 200, description = "Register Name", body = NameResponse),
+        (status = 400, description = "Invalid request")
+    )
+)]
 #[post("/{name}")]
 async fn name_register(
     state: web::Data<AppState>,
@@ -225,6 +288,17 @@ async fn name_register(
     Ok(HttpResponse::Ok().json(response))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/krist/names/{name}/update",
+    params(
+        ("name", description = "Name to update")
+    ),
+    request_body = NameDataUpdateBody,
+    responses(
+        (status = 200, description = "Update Name Data", body = NameResponse)
+    )
+)]
 async fn name_update_data(
     state: web::Data<AppState>,
     name: web::Path<String>,
@@ -242,6 +316,17 @@ async fn name_update_data(
     Ok(HttpResponse::Ok().json(resp))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/krist/names/{name}/transfer",
+    params(
+        ("name", description = "Name to transfer")
+    ),
+    request_body = TransferNameRequest,
+    responses(
+        (status = 200, description = "Transfer Name", body = NameResponse)
+    )
+)]
 #[post("/{name}/transfer")]
 async fn name_transfer(
     state: web::Data<AppState>,

@@ -1,9 +1,10 @@
 mod internal;
-mod krist;
+pub mod krist;
 pub mod not_found;
-mod v1;
+pub mod v1;
 
-use actix_web::{HttpResponse, get, web};
+use actix_web::{HttpResponse, get, middleware, web};
+use utoipa::{IntoParams, ToSchema};
 
 use crate::{errors::krist::KristError, guards};
 
@@ -21,25 +22,28 @@ pub fn config(cfg: &mut web::ServiceConfig) {
 
     cfg.service(
         web::scope("/api/v1")
+            .wrap(middleware::NormalizePath::trim())
             .app_data(krist_json_cfg.clone()) // TODO: Custom.
             .app_data(krist_path_config.clone())
             .configure(v1::config),
     );
     cfg.service(
         web::scope("/api/krist")
+            .wrap(middleware::NormalizePath::trim())
             .app_data(krist_json_cfg)
             .app_data(krist_path_config)
             .configure(krist::config),
     );
     cfg.service(
         web::scope("/api/_internal")
+            .wrap(middleware::NormalizePath::trim())
             .guard(guards::internal_key_guard)
             .configure(internal::config),
     );
     cfg.service(web::scope("").service(index_get));
 }
 
-#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, serde::Deserialize, serde::Serialize, ToSchema, IntoParams)]
 pub struct PaginationParams {
     #[serde(alias = "excludeMined")]
     // Only used on /transactions routes

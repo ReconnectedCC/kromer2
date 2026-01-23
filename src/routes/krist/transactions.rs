@@ -21,6 +21,14 @@ use crate::utils::validation::NAME_META_RE;
 use crate::websockets::WebSocketServer;
 use crate::{AppState, errors::krist::KristError, routes::PaginationParams};
 
+#[utoipa::path(
+    get,
+    path = "/api/krist/transactions",
+    params(PaginationParams),
+    responses(
+        (status = 200, description = "List transactions", body = TransactionListResponse)
+    )
+)]
 #[get("")]
 pub async fn transaction_list(
     state: web::Data<AppState>,
@@ -49,6 +57,14 @@ pub async fn transaction_list(
     Ok(HttpResponse::Ok().json(response))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/krist/transactions",
+    request_body = TransactionDetails,
+    responses(
+        (status = 200, description = "Create transaction", body = TransactionResponse)
+    )
+)]
 #[post("")]
 async fn transaction_create(
     state: web::Data<AppState>,
@@ -148,6 +164,14 @@ async fn transaction_create(
     Ok(HttpResponse::Ok().json(final_response))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/krist/transactions/latest",
+    params(PaginationParams),
+    responses(
+        (status = 200, description = "Get latest transactions", body = TransactionListResponse)
+    )
+)]
 #[get("/latest")]
 async fn transaction_latest(
     state: web::Data<AppState>,
@@ -172,6 +196,17 @@ async fn transaction_latest(
     Ok(HttpResponse::Ok().json(response))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/krist/transactions/{id}",
+    params(
+        ("id", description = "Transaction ID")
+    ),
+    responses(
+        (status = 200, description = "Get transaction by ID", body = TransactionResponse),
+        (status = 404, description = "Transaction not found")
+    )
+)]
 #[get("/{id}")]
 async fn transaction_get(
     state: web::Data<AppState>,

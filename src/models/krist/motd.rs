@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 pub const MINING_CONSTANTS: Constants = Constants {
     wallet_version: 16,
@@ -10,21 +11,21 @@ pub const MINING_CONSTANTS: Constants = Constants {
     seconds_per_block: 300,
 };
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct DetailedMotdResponse {
     pub ok: bool,
     #[serde(flatten)]
     pub motd: DetailedMotd,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct Motd {
     pub motd: String,
     pub motd_set: String,
     pub debug_mode: Option<bool>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct DetailedMotd {
     pub server_time: String,
     pub motd: String,
@@ -46,7 +47,7 @@ pub struct DetailedMotd {
     pub notice: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct PackageInfo {
     pub name: String,
     pub version: String,
@@ -57,7 +58,7 @@ pub struct PackageInfo {
     pub git_hash: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct Constants {
     pub wallet_version: i64,
     pub nonce_max_size: i64,
@@ -68,7 +69,7 @@ pub struct Constants {
     pub seconds_per_block: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct CurrencyInfo {
     pub address_prefix: String,
     pub name_suffix: String,

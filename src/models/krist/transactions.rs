@@ -1,14 +1,11 @@
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
-// use utoipa::{
-//     openapi::{RefOr, Response, ResponseBuilder},
-//     ToResponse, ToSchema,
-// };
+use utoipa::{IntoParams, ToSchema};
 
 use crate::database::transaction::{self, TransactionType};
 // use transaction::TransactionNameData;
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize, ToSchema)]
 pub struct TransactionListResponse {
     pub ok: bool,
 
@@ -21,23 +18,24 @@ pub struct TransactionListResponse {
     pub transactions: Vec<TransactionJson>,
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize, ToSchema)]
 pub struct TransactionDetails {
     #[serde(rename = "privatekey")]
     pub private_key: String,
     pub to: String,
+    #[schema(value_type = String, example = "10.00")]
     pub amount: Decimal,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize, ToSchema)]
 pub struct TransactionResponse {
     pub ok: bool,
     pub transaction: TransactionJson,
 }
 
-#[derive(Debug, Default, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, PartialOrd, Serialize, Deserialize, ToSchema, IntoParams)]
 pub struct AddressTransactionQuery {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
@@ -46,7 +44,7 @@ pub struct AddressTransactionQuery {
     pub include_mined: Option<bool>,
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize, ToSchema)]
 pub struct TransactionJson {
     /// The ID of this transaction.
     pub id: i32,
@@ -58,6 +56,7 @@ pub struct TransactionJson {
     pub to: String,
 
     /// The amount of Krist transferred in this transaction. Can be 0, notably if the transaction was a name's data change.
+    #[schema(value_type = String, example = "100.00")]
     pub value: Decimal,
 
     /// The time this transaction this was made, as an ISO-8601 string.

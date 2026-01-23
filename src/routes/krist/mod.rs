@@ -1,9 +1,9 @@
-mod lookup;
-mod misc;
-mod names;
-mod transactions;
-mod wallet;
-mod ws;
+pub mod lookup;
+pub mod misc;
+pub mod names;
+pub mod transactions;
+pub mod wallet;
+pub mod ws;
 
 use actix_web::{HttpResponse, get, web};
 

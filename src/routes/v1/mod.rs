@@ -1,4 +1,4 @@
-mod wallet;
+pub mod wallet;
 mod ws;
 
 use actix_web::web;
