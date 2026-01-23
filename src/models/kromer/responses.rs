@@ -42,10 +42,10 @@ pub struct ErrorDetail<'a> {
 impl<'a, T: Serialize + ToSchema> Default for ApiResponse<'a, T> {
     fn default() -> Self {
         Self {
-            data: Option::None,
-            meta: Option::None,
-            error: Option::None,
-            message: Option::None,
+            data: None,
+            meta: None,
+            error: None,
+            message: None,
         }
     }
 }
