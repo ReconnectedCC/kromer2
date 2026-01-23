@@ -12,6 +12,14 @@ use crate::models::krist::names::{NameJson, NameListResponse};
 use crate::models::krist::transactions::{TransactionJson, TransactionListResponse};
 use crate::routes::PaginationParams;
 
+#[utoipa::path(
+    get,
+    path = "/api/krist/addresses",
+    params(PaginationParams),
+    responses(
+        (status = 200, description = "List wallets", body = AddressListResponse)
+    )
+)]
 #[get("")]
 async fn wallet_list(
     state: web::Data<AppState>,
@@ -42,6 +50,18 @@ async fn wallet_list(
     Ok(HttpResponse::Ok().json(list_response))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/krist/addresses/{address}",
+    params(
+        ("address", description = "Address to fetch"),
+        AddressGetQuery
+    ),
+    responses(
+        (status = 200, description = "Get Wallet", body = AddressResponse),
+        (status = 404, description = "Wallet not found")
+    )
+)]
 #[get("/{address}")]
 async fn wallet_get(
     state: web::Data<AppState>,
@@ -64,6 +84,14 @@ async fn wallet_get(
         .ok_or_else(|| KristError::Address(AddressError::NotFound(address)))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/krist/addresses/rich",
+    params(PaginationParams),
+    responses(
+        (status = 200, description = "List richest wallets", body = AddressListResponse)
+    )
+)]
 #[get("/rich")]
 async fn wallet_richest(
     state: web::Data<AppState>,
@@ -90,6 +118,18 @@ async fn wallet_richest(
     Ok(HttpResponse::Ok().json(response))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/krist/addresses/{address}/transactions",
+    params(
+        ("address", description = "Address"),
+        PaginationParams
+    ),
+    responses(
+        (status = 200, description = "Get Wallet Transactions", body = TransactionListResponse),
+        (status = 404, description = "Wallet not found")
+    )
+)]
 #[get("/{address}/transactions")]
 async fn wallet_get_transactions(
     state: web::Data<AppState>,
@@ -127,6 +167,18 @@ async fn wallet_get_transactions(
     Ok(HttpResponse::Ok().json(response))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/krist/addresses/{address}/names",
+    params(
+        ("address", description = "Address"),
+        PaginationParams
+    ),
+    responses(
+        (status = 200, description = "Get Wallet Names", body = NameListResponse),
+        (status = 404, description = "Wallet not found")
+    )
+)]
 #[get("/{address}/names")]
 async fn wallet_get_names(
     state: web::Data<AppState>,

@@ -1,10 +1,11 @@
 // use crate::database::models::wallet;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use utoipa::{IntoParams, ToSchema};
 
 use crate::database::wallet;
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize, ToSchema)]
 pub struct AddressListResponse {
     pub ok: bool,
     pub count: usize,
@@ -12,26 +13,29 @@ pub struct AddressListResponse {
     pub addresses: Vec<AddressJson>,
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize, ToSchema)]
 pub struct AddressResponse {
     pub ok: bool,
     pub address: AddressJson,
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize, ToSchema)]
 pub struct AddressCreationResponse {
     #[serde(rename = "privatekey")] // Dima you ask too much of me
     pub private_key: String,
     pub address: String,
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize, ToSchema)]
 pub struct AddressJson {
     pub address: String,
+    #[schema(value_type = String, example = "10.0")]
     pub balance: Decimal,
     #[serde(rename = "totalin")]
+    #[schema(value_type = String, example = "10.0")]
     pub total_in: Decimal,
     #[serde(rename = "totalout")]
+    #[schema(value_type = String, example = "10.0")]
     pub total_out: Decimal,
     #[serde(rename = "firstseen")]
     pub first_seen: String,
@@ -39,7 +43,7 @@ pub struct AddressJson {
     pub names: Option<i64>,
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize, ToSchema)]
 pub struct VerifyResponse {
     pub authed: bool,
     pub address: String,
@@ -58,7 +62,7 @@ impl From<wallet::Model> for AddressJson {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize, ToSchema, IntoParams, Default)]
 pub struct AddressGetQuery {
     #[serde(alias = "fetchNames")]
     pub fetch_names: Option<bool>,

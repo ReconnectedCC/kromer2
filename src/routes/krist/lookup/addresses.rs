@@ -8,6 +8,17 @@ use crate::models::krist::addresses::AddressJson;
 use crate::models::krist::webserver::lookup::addresses::{LookupResponse, QueryParameters};
 use crate::{AppState, errors::krist::KristError};
 
+#[utoipa::path(
+    get,
+    path = "/api/krist/lookup/addresses/{addresses}",
+    params(
+        ("addresses", description = "Comma separated list of addresses"),
+        QueryParameters
+    ),
+    responses(
+        (status = 200, description = "Lookup Addresses", body = LookupResponse)
+    )
+)]
 #[get("/{addresses}")]
 async fn addresses_lookup(
     state: web::Data<AppState>,

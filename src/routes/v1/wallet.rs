@@ -9,6 +9,17 @@ use crate::models::kromer::responses::ApiResponse;
 use crate::models::kromer::wallets::Wallet as WalletResponse;
 use crate::{AppState, errors::KromerError};
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/wallet/by-player/{uuid}",
+    params(
+        ("uuid", description = "Player UUID")
+    ),
+    responses(
+        (status = 200, description = "Player wallets", body = ApiResponse<Vec<WalletResponse>>),
+        (status = 404, description = "Player not found")
+    )
+)]
 #[get("/by-player/{uuid}")]
 async fn wallet_get_by_uuid(
     state: web::Data<AppState>,
@@ -39,6 +50,17 @@ async fn wallet_get_by_uuid(
     Ok(HttpResponse::Ok().json(response))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/wallet/by-name/{name}",
+    params(
+        ("name", description = "Player Name")
+    ),
+    responses(
+        (status = 200, description = "Player wallets", body = ApiResponse<Vec<WalletResponse>>),
+        (status = 404, description = "Player not found")
+    )
+)]
 #[get("/by-name/{name}")]
 async fn wallet_get_by_name(
     state: web::Data<AppState>,
