@@ -36,7 +36,8 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-
+      - name: Install curl (required for swagger)
+        run: sudo apt install curl
       - name: Build and push Docker image
         id: push
         uses: docker/build-push-action@v6
