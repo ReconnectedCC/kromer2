@@ -1,10 +1,8 @@
--- Open: Possible to subscripe to. 
+-- Open: Possible to subscribe to. 
 -- Closed: Not possible to subscribe to, but existing contractees continue payments.
 -- Cancelled: Not possible to subscribe to, and contractees make no more payments.
 CREATE TYPE contract_status AS ENUM ('open', 'closed', 'canceled');
 
--- Contracts that (depending on status) anyone can subscribe to. Updating fields
--- such as the amount and cron_expr is not allowed. Rather, a new contract must be made.
 CREATE TABLE contract_offers (
   contract_id SERIAL PRIMARY KEY,
   owner_id INT NOT NULL,
@@ -16,6 +14,7 @@ CREATE TABLE contract_offers (
   price NUMERIC(16, 2) NOT NULL,
 
   max_subscribers INT,
+  -- If not empty/null then only the wallets who's IDs are in this list may subscribe.
   allow_list INT[], 
 
   created_at TIMESTAMPTZ NOT NULL DEFAULT now (),
