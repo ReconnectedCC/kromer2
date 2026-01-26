@@ -11,7 +11,8 @@ use crate::{
         misc::{MoneySupplyResponse, PrivateKeyAddressResponse, WalletVersionResponse},
         motd::{Constants, CurrencyInfo, DetailedMotd, DetailedMotdResponse, PackageInfo},
     },
-    utils::crypto, websockets::utils::make_url::make_motd_urls,
+    utils::crypto,
+    websockets::utils::make_url::make_motd_urls,
 };
 
 #[utoipa::path(
