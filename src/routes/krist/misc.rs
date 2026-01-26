@@ -1,4 +1,5 @@
 use actix_web::{HttpResponse, get, post, web};
+use chrono::Utc;
 use rust_decimal::Decimal;
 
 use crate::{
@@ -10,7 +11,7 @@ use crate::{
         misc::{MoneySupplyResponse, PrivateKeyAddressResponse, WalletVersionResponse},
         motd::{Constants, CurrencyInfo, DetailedMotd, DetailedMotdResponse, PackageInfo},
     },
-    utils::crypto,
+    utils::crypto, websockets::utils::make_url::make_motd_urls,
 };
 
 #[utoipa::path(
@@ -50,13 +51,27 @@ async fn login_address(
 async fn get_motd() -> HttpResponse {
     // This is by far the simplest fucking route in all of Kromer.
     // TODO: Make this actually better.
+    let urls = make_motd_urls();
+    let public_url: String;
+    let public_ws_url: String;
+    match urls {
+        Ok(urls) => {
+            public_url = urls[0].clone(); // This vec will always be 2 elements.
+            public_ws_url = urls[1].clone();
+        }
+        Err(_) => {
+            // Sane default values
+            public_url = "https://kromer.reconnected.cc".to_string();
+            public_ws_url = "https://kromer.reconnected.cc/api/krist/ws".to_string();
+        }
+    }
     let motd = DetailedMotd {
-        server_time: "server_time".to_string(),
+        server_time: Utc::now().to_rfc3339(),
         motd: "Message of the day".to_string(),
         set: None,
         motd_set: None,
-        public_url: "http://kromer.reconnected.cc".to_string(),
-        public_ws_url: "http://kromer.reconnected.cc/api/krist/ws".to_string(),
+        public_url: public_url,
+        public_ws_url: public_ws_url,
         mining_enabled: false,
         transactions_enabled: true,
         debug_mode: true,
@@ -67,7 +82,7 @@ async fn get_motd() -> HttpResponse {
             version: "0.2.0".to_string(),
             author: "ReconnectedCC Team".to_string(),
             license: "GPL-3.0".to_string(),
-            repository: "https://github.com/ReconnectedCC/kromer/".to_string(),
+            repository: "https://github.com/ReconnectedCC/kromer2/".to_string(),
             git_hash: crate::build_info::GIT_COMMIT_HASH.map(|s| s.to_string()),
         },
         constants: Constants {
