@@ -62,7 +62,9 @@ impl From<wallet::Model> for AddressJson {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize, ToSchema, IntoParams, Default)]
+#[derive(
+    Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize, ToSchema, IntoParams, Default,
+)]
 pub struct AddressGetQuery {
     #[serde(alias = "fetchNames")]
     pub fetch_names: Option<bool>,
