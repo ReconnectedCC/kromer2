@@ -35,7 +35,9 @@ pub struct TransactionResponse {
     pub transaction: TransactionJson,
 }
 
-#[derive(Debug, Default, Clone, PartialEq, PartialOrd, Serialize, Deserialize, ToSchema, IntoParams)]
+#[derive(
+    Debug, Default, Clone, PartialEq, PartialOrd, Serialize, Deserialize, ToSchema, IntoParams,
+)]
 pub struct AddressTransactionQuery {
     pub limit: Option<i32>,
     pub offset: Option<i32>,

@@ -30,7 +30,9 @@ pub struct Model {
     pub date: DateTime<Utc>,
 }
 
-#[derive(Debug, Default, Clone, PartialEq, PartialOrd, Serialize, Deserialize, sqlx::Type, ToSchema)]
+#[derive(
+    Debug, Default, Clone, PartialEq, PartialOrd, Serialize, Deserialize, sqlx::Type, ToSchema,
+)]
 #[sqlx(type_name = "transaction_type", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum TransactionType {
