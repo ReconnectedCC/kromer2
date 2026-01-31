@@ -5,11 +5,10 @@ pkgs.mkShell {
     postgresql
     cargo
     rustc
+    rustfmt
   ];
 
   shellHook = ''
-    set -e
-
     export PGDATA="$PWD/.postgres"
     export PGHOST="$PGDATA"
     export PGPORT=5432
@@ -29,8 +28,15 @@ pkgs.mkShell {
       pg_ctl -D "$PGDATA" -l "$PGDATA/logfile" -o "-k $PGDATA" start
     fi
 
-    createuser root -s 2>/dev/null || true
-    psql -d postgres -c "ALTER USER root WITH PASSWORD 'root';" >/dev/null 2>&1 || true
+    psql -d postgres <<'SQL'
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'root') THEN
+        CREATE ROLE root WITH LOGIN SUPERUSER PASSWORD 'root';
+      END IF;
+    END
+    $$;
+    SQL
 
     echo ""
     echo "Postgres ready"
