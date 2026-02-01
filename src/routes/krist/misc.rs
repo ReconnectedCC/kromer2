@@ -13,6 +13,24 @@ use crate::{
     utils::crypto,
 };
 
+use chrono::Utc;
+use once_cell::sync::Lazy;
+use std::env;
+
+pub static PUBLIC_URL: Lazy<Result<String, KristError>> =
+    Lazy::new(|| env::var("PUBLIC_URL").map_err(|_| KristError::Custom("server_config_error")));
+
+pub static PUBLIC_WS_URL: Lazy<Result<String, KristError>> = Lazy::new(|| {
+    let url = PUBLIC_URL
+        .as_ref()
+        .map_err(|_| KristError::Custom("server_config_error"))?;
+    let schema = match env::var("FORCE_WS_INSECURE").as_deref() {
+        Ok("false") => "wss",
+        _ => "ws",
+    };
+    Ok(format!("{schema}://{url}/api/krist/ws"))
+});
+
 #[utoipa::path(
     post,
     path = "/api/krist/login",
@@ -43,20 +61,26 @@ async fn login_address(
     get,
     path = "/api/krist/motd",
     responses(
-        (status = 200, description = "Get Message of the Day", body = DetailedMotdResponse)
+        (status = 200, description = "Get Kromer MOTD information", body = DetailedMotdResponse)
     )
 )]
 #[get("/motd")]
-async fn get_motd() -> HttpResponse {
-    // This is by far the simplest fucking route in all of Kromer.
-    // TODO: Make this actually better.
+async fn get_motd() -> Result<HttpResponse, KristError> {
+    let public_url = PUBLIC_URL
+        .as_ref()
+        .map_err(|_| KristError::Custom("server_config_error"))?;
+
+    let public_ws_url = PUBLIC_WS_URL
+        .as_ref()
+        .map_err(|_| KristError::Custom("server_config_error"))?;
+
     let motd = DetailedMotd {
-        server_time: "server_time".to_string(),
+        server_time: Utc::now().to_rfc3339(),
         motd: "Message of the day".to_string(),
         set: None,
         motd_set: None,
-        public_url: "http://kromer.reconnected.cc".to_string(),
-        public_ws_url: "http://kromer.reconnected.cc/api/krist/ws".to_string(),
+        public_url: public_url.to_string(),
+        public_ws_url: public_ws_url.to_string(),
         mining_enabled: false,
         transactions_enabled: true,
         debug_mode: true,
@@ -67,7 +91,7 @@ async fn get_motd() -> HttpResponse {
             version: "0.2.0".to_string(),
             author: "ReconnectedCC Team".to_string(),
             license: "GPL-3.0".to_string(),
-            repository: "https://github.com/ReconnectedCC/kromer/".to_string(),
+            repository: "https://github.com/ReconnectedCC/kromer2/".to_string(),
             git_hash: crate::build_info::GIT_COMMIT_HASH.map(|s| s.to_string()),
         },
         constants: Constants {
@@ -90,7 +114,7 @@ async fn get_motd() -> HttpResponse {
 
     let motd = DetailedMotdResponse { ok: true, motd };
 
-    HttpResponse::Ok().json(motd)
+    Ok(HttpResponse::Ok().json(motd))
 }
 
 #[utoipa::path(

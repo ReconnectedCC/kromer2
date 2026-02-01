@@ -3,9 +3,6 @@
 pkgs.mkShell {
   packages = with pkgs; [
     postgresql
-    cargo
-    rustc
-    rustfmt
   ];
 
   shellHook = ''
