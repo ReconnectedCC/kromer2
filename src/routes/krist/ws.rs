@@ -22,7 +22,7 @@ use crate::websockets::{CLIENT_TIMEOUT, HEARTBEAT_INTERVAL, WebSocketServer, han
 
 #[derive(serde::Deserialize)]
 struct WsConnDetails {
-    privatekey: String,
+    privatekey: Option<String>, // I hate our users, they cant follow any directions can they?
 }
 
 #[post("/start")]
@@ -33,7 +33,10 @@ pub async fn setup_ws(
     details: Option<web::Json<WsConnDetails>>,
 ) -> Result<HttpResponse, KristError> {
     let pool = &state.pool;
-    let private_key = details.map(|json_details| json_details.privatekey.clone());
+
+    // I can not trust our users to be responsible, if they could not send a fucking json object
+    // with fuck all in it, I would be so happy <3
+    let private_key = details.and_then(|d| d.into_inner().privatekey);
 
     let uuid = match private_key {
         Some(private_key) => {
