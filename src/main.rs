@@ -30,6 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         paths(
             routes::v1::wallet::wallet_get_by_uuid,
             routes::v1::wallet::wallet_get_by_name,
+            routes::v1::ws::ws_session_get_count,
             routes::krist::transactions::transaction_list,
             routes::krist::transactions::transaction_create,
             routes::krist::transactions::transaction_latest,
@@ -57,6 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ),
         components(schemas(
             kromer::models::kromer::wallets::Wallet,
+            kromer::models::kromer::websockets::SessionCountResponse,
             kromer::models::kromer::responses::None,
             kromer::models::kromer::responses::ResponseMeta,
             kromer::models::kromer::responses::ApiError,
@@ -98,7 +100,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             kromer::models::krist::addresses::VerifyResponse,
             kromer::models::krist::addresses::AddressGetQuery,
             kromer::models::krist::webserver::lookup::addresses::LookupResponse,
-            kromer::models::krist::webserver::lookup::addresses::QueryParameters
+            kromer::models::krist::webserver::lookup::addresses::QueryParameters,
         ))
     )]
     struct ApiDocs;

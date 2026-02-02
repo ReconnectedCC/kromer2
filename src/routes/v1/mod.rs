@@ -1,5 +1,5 @@
 pub mod wallet;
-mod ws;
+pub mod ws;
 
 use actix_web::web;
 

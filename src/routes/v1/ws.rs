@@ -1,10 +1,18 @@
 use actix_web::{HttpResponse, get, web};
-use serde_json::json;
 
 use crate::{
-    errors::KromerError, models::kromer::responses::ApiResponse, websockets::WebSocketServer,
+    errors::KromerError,
+    models::kromer::{responses::ApiResponse, websockets::SessionCountResponse},
+    websockets::WebSocketServer,
 };
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/ws/session/count",
+    responses(
+        (status = 200, description = "Total connected websockets", body = ApiResponse<SessionCountResponse>),
+    )
+)]
 #[get("/session/count")]
 async fn ws_session_get_count(
     server: web::Data<WebSocketServer>,
@@ -12,9 +20,9 @@ async fn ws_session_get_count(
     let sessions = &server.inner.lock().await.sessions;
 
     let response = ApiResponse {
-        data: Some(json!({
-            "count": sessions.len()
-        })),
+        data: Some(SessionCountResponse {
+            count: sessions.len(),
+        }),
         ..Default::default()
     };
 
