@@ -12,7 +12,7 @@ pub struct WalletVersionResponse {
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize, ToSchema)]
 pub struct MoneySupplyResponse {
     pub ok: bool,
-    #[schema(value_type = String, example = "100000.00")]
+    #[schema(value_type = f64, example = 100000.00)]
     pub money_supply: Decimal,
 }
 

@@ -29,13 +29,13 @@ pub struct AddressCreationResponse {
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize, ToSchema)]
 pub struct AddressJson {
     pub address: String,
-    #[schema(value_type = String, example = "10.0")]
+    #[schema(value_type = f64, example = 10.0)]
     pub balance: Decimal,
     #[serde(rename = "totalin")]
-    #[schema(value_type = String, example = "10.0")]
+    #[schema(value_type = f64, example = 10.0)]
     pub total_in: Decimal,
     #[serde(rename = "totalout")]
-    #[schema(value_type = String, example = "10.0")]
+    #[schema(value_type = f64, example = 10.0)]
     pub total_out: Decimal,
     #[serde(rename = "firstseen")]
     pub first_seen: String,

@@ -23,7 +23,7 @@ pub struct TransactionDetails {
     #[serde(rename = "privatekey")]
     pub private_key: String,
     pub to: String,
-    #[schema(value_type = String, example = "10.00")]
+    #[schema(value_type = f64, example = 10.00)]
     pub amount: Decimal,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<String>,
@@ -58,7 +58,7 @@ pub struct TransactionJson {
     pub to: String,
 
     /// The amount of Krist transferred in this transaction. Can be 0, notably if the transaction was a name's data change.
-    #[schema(value_type = String, example = "100.00")]
+    #[schema(value_type = f64, example = 100.00)]
     pub value: Decimal,
 
     /// The time this transaction this was made, as an ISO-8601 string.
