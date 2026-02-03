@@ -15,7 +15,7 @@ CREATE TABLE contract_offers (
 
   max_subscribers INT,
   -- If not empty/null then only the wallets who's IDs are in this list may subscribe.
-  allow_list INT[], 
+  allow_list CHAR(10)[], 
 
   created_at TIMESTAMPTZ NOT NULL DEFAULT now (),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now (),

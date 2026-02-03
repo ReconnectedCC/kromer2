@@ -30,6 +30,8 @@
           toolchain.default
           sqlx-cli
           just
+          dbeaver-bin
+          atac
         ];
 
         RUST_BACKTRACE = "full";

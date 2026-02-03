@@ -5,7 +5,7 @@ use std::env;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
-use kromer::{AppState, routes, websockets::WebSocketServer};
+use kromer::{AppState, routes, subs::SubUpdateNofif, websockets::WebSocketServer};
 
 #[actix_web::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -23,6 +23,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Database migrations completed successfully");
 
     let krist_ws_server = WebSocketServer::new();
+
+    let _sub_tx = kromer::subs::new_sub_manager(pool.clone(), krist_ws_server.clone());
+
+    //FIXME: Remove
+    let _ = _sub_tx.send(SubUpdateNofif {}).await;
+
     let state = web::Data::new(AppState { pool });
 
     #[derive(OpenApi)]
