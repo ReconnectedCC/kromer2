@@ -5,7 +5,7 @@ use std::env;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
-use kromer::{AppState, routes, websockets::WebSocketServer};
+use kromer::{AppState, auth::AuthAddon, routes, websockets::WebSocketServer};
 
 #[actix_web::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -37,6 +37,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             routes::v1::wallet::wallet_get_by_uuid,
             routes::v1::wallet::wallet_get_by_name,
             routes::v1::ws::ws_session_get_count,
+            routes::v1::auth::login,
+            routes::v1::auth::logout,
             routes::krist::transactions::transaction_list,
             routes::krist::transactions::transaction_create,
             routes::krist::transactions::transaction_latest,
@@ -107,7 +109,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             kromer::models::krist::addresses::AddressGetQuery,
             kromer::models::krist::webserver::lookup::addresses::LookupResponse,
             kromer::models::krist::webserver::lookup::addresses::QueryParameters,
-        ))
+            kromer::models::kromer::auth::AuthenticatedResponse,
+        )),
+        modifiers(&AuthAddon),
     )]
     struct ApiDocs;
 

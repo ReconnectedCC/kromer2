@@ -1,3 +1,4 @@
+pub mod auth;
 pub mod wallet;
 pub mod ws;
 
@@ -10,4 +11,5 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.configure(ws::config);
     // cfg.configure(transaction::config);
     // cfg.configure(name::config);
+    cfg.configure(auth::config);
 }

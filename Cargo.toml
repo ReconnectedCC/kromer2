@@ -48,5 +48,6 @@ utoipa-actix-web = "0.1"
 utoipa-swagger-ui = { version = "9", features = ["actix-web"] }
 tokio-retry2 = { version = "0.9", features = ["jitter", "tracing"] }
 croner = "3.0.1"
+actix-web-httpauth = "0.8.2"
 [build-dependencies]
 built = { version = "0.8.0", features = ["git2"] }
