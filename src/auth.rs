@@ -89,6 +89,10 @@ impl AuthSessions {
             true
         }
     }
+
+    pub fn get_address(&self, id: Uuid) -> Option<String> {
+        self.sessions.get(&id).map(|v| v.value().0.clone())
+    }
 }
 
 pub async fn check_bearer(state: &AppState, cred: Option<BearerAuth>) -> Result<Uuid, AuthError> {

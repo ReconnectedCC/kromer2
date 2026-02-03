@@ -2,6 +2,7 @@ pub mod auth;
 pub mod krist;
 pub mod name;
 pub mod player;
+pub mod subs;
 pub mod transaction;
 pub mod wallet;
 pub mod websocket;
@@ -52,6 +53,9 @@ pub enum KromerError {
 
     #[error("Authorization error: {0}")]
     AuthError(#[from] auth::AuthError),
+
+    #[error("Subscriptions Error: {0}")]
+    SubsError(#[from] subs::SubsError),
 }
 
 impl error::ResponseError for KromerError {
@@ -69,6 +73,7 @@ impl error::ResponseError for KromerError {
             KromerError::IO(_) => StatusCode::INTERNAL_SERVER_ERROR,
             KromerError::JsonPayload(e) => e.status_code(),
             KromerError::AuthError(e) => e.status_code(),
+            KromerError::SubsError(e) => e.status_code(),
         }
     }
 
@@ -89,6 +94,7 @@ impl error::ResponseError for KromerError {
                 KromerError::IO(_) => "io_error",
                 KromerError::JsonPayload(_) => "json_payload_error",
                 KromerError::AuthError(_) => "authorization_error",
+                KromerError::SubsError(_) => "subscription_error",
             },
             message: &message,
             details: &[],

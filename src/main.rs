@@ -39,6 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             routes::v1::ws::ws_session_get_count,
             routes::v1::auth::login,
             routes::v1::auth::logout,
+            routes::v1::subs::create_contract,
             routes::krist::transactions::transaction_list,
             routes::krist::transactions::transaction_create,
             routes::krist::transactions::transaction_latest,
