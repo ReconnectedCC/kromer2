@@ -31,7 +31,11 @@ use tokio_retry2::{Retry, RetryError, strategy::ExponentialBackoff};
 use tracing::{info, warn};
 
 use crate::{
-    models::kromer::subs::{ContractStatus, SubStatus},
+    database::{ModelExt, transaction::Model as Transaction},
+    models::{
+        krist::websockets::{WebSocketEvent, WebSocketMessage},
+        kromer::subs::{ContractStatus, SubStatus},
+    },
     websockets::WebSocketServer,
 };
 
@@ -84,8 +88,29 @@ async fn sub_manager(db: PgPool, mut rx: Receiver<SubUpdateNofif>, ws: WebSocket
                     async |db: &PgPool, _ws: &WebSocketServer| match try_process_lapsed(db).await {
                         Ok(res) => {
                             info!("Resolved lapsed subscription: {:?}", res);
-                            // TODO: Dispatch messages to websocket, for both subscription and
-                            // transaction
+
+                            match res.status {
+                                LapsedStatus::Renewed { transction_id, .. } => {
+                                    let Ok(Some(transaction_info)) =
+                                        Transaction::fetch_by_id(db, transction_id).await
+                                    else {
+                                        warn!(
+                                            "Could not send transaction notification over websocket"
+                                        );
+                                        return;
+                                    };
+
+                                    ws.broadcast_event(WebSocketMessage::new_event(
+                                        WebSocketEvent::Transaction {
+                                            transaction: transaction_info.into(),
+                                        },
+                                    ))
+                                    .await
+                                }
+                                LapsedStatus::Canceled => {
+                                    // TODO: Add websocket broadcast event
+                                }
+                            }
                         }
                         Err(err) => {
                             warn!("Failed to process a lapsed transaction: {}", err)
