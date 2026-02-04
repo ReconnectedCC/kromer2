@@ -73,7 +73,7 @@ impl WebSocketServer {
     pub async fn cleanup_session(&self, uuid: &Uuid) {
         self.inner.lock().await.sessions.remove(uuid);
 
-        tracing::info!("Cleansed session");
+        tracing::info!("Cleaned session");
     }
 
     #[tracing::instrument(skip_all, fields(address = token_data.address))]
