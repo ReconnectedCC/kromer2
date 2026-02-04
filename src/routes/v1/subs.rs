@@ -1,6 +1,9 @@
 use std::str::FromStr;
 
-use actix_web::{HttpResponse, get, post, web};
+use actix_web::{
+    HttpResponse, get, post,
+    web::{self, service},
+};
 use actix_web_httpauth::extractors::bearer::BearerAuth;
 use chrono::Utc;
 use croner::Cron;
@@ -22,7 +25,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/subs")
             .service(create_contract)
-            .service(list_contracts),
+            .service(list_contracts)
+            .service(contract_by_id),
     );
 }
 
@@ -225,4 +229,38 @@ pub async fn list_contracts(
     };
 
     Ok(HttpResponse::Ok().json(res))
+}
+
+/// Fetch contract info by ID
+#[get("/c/{id}")]
+pub async fn contract_by_id(
+    state: web::Data<AppState>,
+    id: web::Path<i32>,
+) -> Result<HttpResponse, KromerError> {
+    let id = id.into_inner();
+
+    if id < 0 {
+        return Err(SubsError::InvalidId(id).into());
+    }
+
+    let info: ContractInfo = sqlx::query_as(
+        "SELECT 
+            w.address, 
+            c.contract_id,
+            c.title, 
+            c.description, 
+            c.status,
+            c.price, 
+            c.max_subscribers, 
+            c.allow_list, 
+            c.created_at,
+            c.updated_at,
+            c.cron_expr
+        FROM contract_offers AS c LEFT JOIN wallets AS w ON c.owner_id = w.id WHERE contract_id = $1"
+    ).bind(id).fetch_optional(&state.pool).await?.ok_or(SubsError::ContractNotFound(id))?;
+
+    Ok(HttpResponse::Ok().json(ApiResponse {
+        data: Some(info),
+        ..Default::default()
+    }))
 }

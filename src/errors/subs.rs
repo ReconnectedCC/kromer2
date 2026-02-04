@@ -11,6 +11,12 @@ pub enum SubsError {
 
     #[error("Max subscriber count must be non-negative")]
     InvalidMaxSubscribers,
+
+    #[error("'{0} is not a valid ID")]
+    InvalidId(i32),
+
+    #[error("Could not find contract with ID '{0}'")]
+    ContractNotFound(i32),
 }
 
 use actix_web::{error, http::StatusCode};
@@ -22,6 +28,8 @@ impl error::ResponseError for SubsError {
             Self::InvalidAllowList(_) => StatusCode::BAD_REQUEST,
             Self::InvalidPrice => StatusCode::BAD_REQUEST,
             Self::InvalidMaxSubscribers => StatusCode::BAD_REQUEST,
+            Self::InvalidId(_) => StatusCode::BAD_REQUEST,
+            Self::ContractNotFound(_) => StatusCode::NOT_FOUND,
         }
     }
 }
