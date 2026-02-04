@@ -3,7 +3,7 @@
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, sqlx::Type, ToSchema)]
 #[sqlx(type_name = "contract_status", rename_all = "lowercase")]
@@ -50,4 +50,21 @@ pub struct ContractInfo {
 
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
+}
+
+// Yes, this is seperate from the main PaginationParams struct. This needs extra parameters, and is
+// not bound by the ModelExt trait anyways so I can get away with it.
+
+/// Pagination params passed to contract GET request. Filters eitheir subscriptions by their
+#[derive(Debug, Clone, Deserialize, IntoParams)]
+pub struct ContractQueryParams {
+    /// The maximum number of entries to return. Will be clamped between 0 and 500, defaulting to
+    /// 50.
+    pub limit: Option<i32>,
+    /// The offset of the page, defaults to 0.
+    pub offset: Option<i32>,
+    /// Optional filter by address that owns the resource
+    pub address: Option<String>,
+    /// Optional filter based on the resource's status
+    pub is_open: Option<bool>,
 }

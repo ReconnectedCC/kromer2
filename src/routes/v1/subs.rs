@@ -1,33 +1,45 @@
 use std::str::FromStr;
 
-use actix_web::{HttpResponse, post, web};
+use actix_web::{HttpResponse, get, post, web};
 use actix_web_httpauth::extractors::bearer::BearerAuth;
 use chrono::Utc;
 use croner::Cron;
 use rust_decimal::Decimal;
+use sqlx::QueryBuilder;
 
 use crate::{
     AppState,
     auth::check_bearer,
     errors::{KromerError, auth::AuthError, subs::SubsError},
     models::kromer::{
-        responses::ApiResponse,
-        subs::{ContractCreateRequest, ContractInfo},
+        responses::{ApiResponse, PaginatedResponse},
+        subs::{ContractCreateRequest, ContractInfo, ContractQueryParams},
     },
     utils::validation::is_valid_kromer_address,
 };
 
 pub fn config(cfg: &mut web::ServiceConfig) {
-    cfg.service(web::scope("/subs").service(create_contract));
+    cfg.service(
+        web::scope("/subs")
+            .service(create_contract)
+            .service(list_contracts),
+    );
 }
 
 /// Create a contract
+///
+/// Creates a new contract under the currently authorized wallet.
 #[utoipa::path(
     post,
-    path = "/api/v1/subs/create",
+    path = "/api/v1/subs/c",
+    request_body = ContractCreateRequest,
+    responses(
+        (status = 200, description = "Created contract", body = ApiResponse<ContractInfo>),
+        (status = 400, description = "A part of your request was not valid, check message"),
+    ),
     security(("bearerAuth" = [])),
 )]
-#[post("/create")]
+#[post("/c")]
 pub async fn create_contract(
     state: web::Data<AppState>,
     auth: Option<BearerAuth>,
@@ -118,4 +130,99 @@ fn validate_body(body: &ContractCreateRequest) -> Result<(), SubsError> {
     }
 
     Ok(())
+}
+
+/// List contracts
+#[utoipa::path(
+    get,
+    path = "/api/v1/c",
+    params(ContractQueryParams),
+    responses(
+        (status = 200, description = "List contracts", body = ApiResponse<PaginatedResponse<ContractInfo>>)
+    )
+)]
+#[get("/c")]
+pub async fn list_contracts(
+    state: web::Data<AppState>,
+    query: web::Query<ContractQueryParams>,
+) -> Result<HttpResponse, KromerError> {
+    let offset = query.offset.unwrap_or(0).abs() as i64;
+    let limit = query.limit.unwrap_or(50).abs().min(500) as i64;
+
+    let is_open = query.is_open.unwrap_or_default();
+
+    // Woo! Query builder fun
+
+    let mut list_qb = QueryBuilder::new(
+        "SELECT 
+            w.address, 
+            c.contract_id,
+            c.title, 
+            c.description, 
+            c.status,
+            c.price, 
+            c.max_subscribers, 
+            c.allow_list, 
+            c.created_at,
+            c.updated_at,
+            c.cron_expr
+        FROM contract_offers AS c LEFT JOIN wallets AS w ON c.owner_id = w.id",
+    );
+
+    let mut count_qb = QueryBuilder::new(
+        "SELECT COUNT(*) FROM contract_offers AS c LEFT JOIN wallets AS w on c.owner_id = w.id",
+    );
+
+    match (query.address.as_deref(), is_open) {
+        (Some(addr), true) => {
+            let frag = " WHERE c.status = 'open' AND w.address = ";
+
+            list_qb.push(frag);
+            list_qb.push_bind(addr);
+
+            count_qb.push(frag);
+            count_qb.push_bind(addr);
+        }
+        (Some(addr), false) => {
+            let frag = " WHERE w.address = ";
+
+            list_qb.push(frag);
+            list_qb.push_bind(addr);
+
+            count_qb.push(frag);
+            count_qb.push_bind(addr);
+        }
+        (None, true) => {
+            let frag = " WHERE c.status = 'open'";
+
+            list_qb.push(frag);
+            count_qb.push(frag);
+        }
+        (None, false) => (),
+    };
+
+    list_qb.push(" ORDER BY c.created_at LIMIT ");
+    list_qb.push_bind(limit);
+    list_qb.push(" OFFSET ");
+    list_qb.push_bind(offset);
+
+    let items: Vec<ContractInfo> = list_qb.build_query_as().fetch_all(&state.pool).await?;
+    let table_len: i64 = count_qb.build_query_scalar().fetch_one(&state.pool).await?;
+
+    let remaining = (table_len - (offset + items.len() as i64))
+        .max(0)
+        .try_into()
+        .expect("Value cannot be negative");
+
+    let res = ApiResponse {
+        data: Some(PaginatedResponse {
+            count: items.len(),
+
+            items,
+            remaining,
+        }),
+        ..Default::default()
+    };
+
+    Ok(HttpResponse::Ok().json(res))
 }

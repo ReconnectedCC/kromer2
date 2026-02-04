@@ -40,6 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             routes::v1::auth::login,
             routes::v1::auth::logout,
             routes::v1::subs::create_contract,
+            routes::v1::subs::list_contracts,
             routes::krist::transactions::transaction_list,
             routes::krist::transactions::transaction_create,
             routes::krist::transactions::transaction_latest,
@@ -111,6 +112,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             kromer::models::krist::webserver::lookup::addresses::LookupResponse,
             kromer::models::krist::webserver::lookup::addresses::QueryParameters,
             kromer::models::kromer::auth::AuthenticatedResponse,
+            kromer::models::kromer::subs::ContractCreateRequest,
+            kromer::models::kromer::subs::ContractInfo,
         )),
         modifiers(&AuthAddon),
     )]
