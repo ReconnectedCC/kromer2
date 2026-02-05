@@ -7,7 +7,7 @@ use sqlx::PgPool;
 use utoipa::openapi::security::{Http, SecurityScheme};
 use uuid::Uuid;
 
-use crate::{AppState, database::wallet::Model as Wallet, errors::auth::AuthError};
+use crate::{database::wallet::Model as Wallet, errors::auth::AuthError};
 
 #[derive(Debug, Clone, Default)]
 pub struct AuthSessions {
@@ -28,6 +28,8 @@ impl AuthSessions {
         let exp = Utc::now() + TimeDelta::hours(1);
 
         self.sessions.insert(id, (addr, exp));
+
+        tracing::debug!("Starteed session '{}'. Expires at {}", id, exp);
 
         (id, exp)
     }
@@ -95,14 +97,14 @@ impl AuthSessions {
     }
 }
 
-pub async fn check_bearer(state: &AppState, cred: Option<BearerAuth>) -> Result<Uuid, AuthError> {
+pub fn check_bearer(state: &AuthSessions, cred: Option<BearerAuth>) -> Result<Uuid, AuthError> {
     let Some(cred) = cred else {
         return Err(AuthError::MissingBearer);
     };
 
     let id = Uuid::try_parse(cred.token()).map_err(|_| AuthError::InvalidSession)?;
 
-    if !state.auth.session_exists(id) {
+    if !state.session_exists(id) {
         Err(AuthError::InvalidSession)
     } else {
         Ok(id)

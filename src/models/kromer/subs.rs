@@ -5,6 +5,8 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 
+use crate::models::kromer::Patch;
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, sqlx::Type, ToSchema)]
 #[sqlx(type_name = "contract_status", rename_all = "lowercase")]
 pub enum ContractStatus {
@@ -35,22 +37,22 @@ pub struct ContractCreateRequest {
 /// Contract info returned from requests
 #[derive(Debug, Clone, Serialize, sqlx::FromRow, ToSchema)]
 pub struct ContractInfo {
-    contract_id: i32,
-    address: String,
+    pub contract_id: i32,
+    pub address: String,
 
-    status: ContractStatus,
+    pub status: ContractStatus,
 
-    title: String,
-    description: Option<String>,
+    pub title: String,
+    pub description: Option<String>,
 
-    price: Decimal,
-    cron_expr: String,
+    pub price: Decimal,
+    pub cron_expr: String,
 
-    max_subscribers: Option<i32>,
-    allow_list: Option<String>,
+    pub max_subscribers: Option<i32>,
+    pub allow_list: Option<Vec<String>>,
 
-    created_at: DateTime<Utc>,
-    updated_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 /// Subscription info returned by the server
@@ -90,4 +92,27 @@ pub struct ListSubscribersParams {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
     pub is_active: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(default)]
+pub struct UpdateContractRequest {
+    pub title: Option<String>,
+    pub description: Patch<String>,
+    pub status: Option<ContractStatus>,
+    pub price: Option<Decimal>,
+    pub cron_expr: Option<String>,
+    pub max_subscribers: Patch<i32>,
+    pub allow_list: Patch<Vec<String>>,
+}
+
+impl UpdateContractRequest {
+    pub fn is_empty(&self) -> bool {
+        self.title.is_none()
+            && self.description.is_none()
+            && self.price.is_none()
+            && self.cron_expr.is_none()
+            && self.max_subscribers.is_none()
+            && self.allow_list.is_none()
+    }
 }

@@ -4,7 +4,7 @@ use actix_web::{error, http::StatusCode};
 pub enum AuthError {
     #[error("Missing bearer auth token in header")]
     MissingBearer,
-    #[error("This endpoint requires an authorization token")]
+    #[error("This session is not authorized to operate on this resource")]
     Unauthorized,
     #[error("Attempted to operate on a wallet not associated with this session")]
     BadWallet,

@@ -6,18 +6,22 @@ use chrono::Utc;
 use croner::Cron;
 use rust_decimal::Decimal;
 use sqlx::{Pool, Postgres, QueryBuilder};
+use tokio::sync::mpsc::Sender;
+use utoipa::ToSchema;
 
 use crate::{
     AppState,
-    auth::check_bearer,
+    auth::{AuthSessions, check_bearer},
     errors::{KromerError, auth::AuthError, subs::SubsError},
     models::kromer::{
+        Patch,
         responses::{ApiResponse, PaginatedResponse},
         subs::{
-            ContractCreateRequest, ContractInfo, ContractQueryParams, ListSubscribersParams,
-            SubscriptionInfo,
+            ContractCreateRequest, ContractInfo, ContractQueryParams, ContractStatus,
+            ListSubscribersParams, SubscriptionInfo, UpdateContractRequest,
         },
     },
+    subs::SubUpdateNofif,
     utils::validation::is_valid_kromer_address,
 };
 
@@ -27,7 +31,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .service(create_contract)
             .service(list_contracts)
             .service(contract_by_id)
-            .service(contract_subscribers),
+            .service(contract_subscribers)
+            .service(patch_contract),
     );
 }
 
@@ -47,16 +52,16 @@ pub fn config(cfg: &mut web::ServiceConfig) {
 #[post("")]
 pub async fn create_contract(
     state: web::Data<AppState>,
+    sessions: web::Data<AuthSessions>,
     auth: Option<BearerAuth>,
     body: web::Json<ContractCreateRequest>,
 ) -> Result<HttpResponse, KromerError> {
     let body = body.into_inner();
-    let session_id = check_bearer(&state, auth).await?;
+    let session_id = check_bearer(&sessions, auth)?;
 
     validate_body(&body)?;
 
-    let addr = state
-        .auth
+    let addr = sessions
         .get_address(session_id)
         .ok_or(AuthError::InvalidSession)?;
 
@@ -112,19 +117,18 @@ pub async fn create_contract(
 }
 
 fn validate_body(body: &ContractCreateRequest) -> Result<(), SubsError> {
-    // Perform a bunch of validations
-    let cron_expr = Cron::from_str(&body.cron_expr).map_err(|_| SubsError::InvalidCronExpr)?;
-    cron_expr
-        .find_next_occurrence(&Utc::now(), false)
-        .map_err(|_| SubsError::InvalidCronExpr)?;
-
-    if let Some(allow_list) = &body.allow_list {
-        for (i, addr) in allow_list.iter().enumerate() {
-            if !is_valid_kromer_address(addr) {
-                return Err(SubsError::InvalidAllowList(i));
-            }
-        }
+    if !validate_length(&body.title, 1, 64) {
+        return Err(SubsError::TitleLength);
     }
+
+    if let Some(desc) = body.description.as_ref()
+        && !validate_length(desc, 0, 500)
+    {
+        return Err(SubsError::InvalidDescription);
+    }
+
+    validate_cron_expr(&body.cron_expr)?;
+    validate_allow_list(body.allow_list.as_deref())?;
 
     if body.price <= Decimal::ZERO {
         return Err(SubsError::InvalidPrice);
@@ -132,6 +136,28 @@ fn validate_body(body: &ContractCreateRequest) -> Result<(), SubsError> {
 
     if body.max_subscribers.is_some_and(|n| n < 0) {
         return Err(SubsError::InvalidMaxSubscribers);
+    }
+
+    Ok(())
+}
+
+fn validate_cron_expr(s: &str) -> Result<(), SubsError> {
+    let cron_expr = Cron::from_str(s).map_err(|_| SubsError::InvalidCronExpr)?;
+
+    cron_expr
+        .find_next_occurrence(&Utc::now(), false)
+        .map_err(|_| SubsError::InvalidCronExpr)?;
+
+    Ok(())
+}
+
+fn validate_allow_list(list: Option<&[String]>) -> Result<(), SubsError> {
+    if let Some(l) = list {
+        for (i, addr) in l.iter().enumerate() {
+            if !is_valid_kromer_address(addr) {
+                return Err(SubsError::InvalidAllowList(i));
+            }
+        }
     }
 
     Ok(())
@@ -375,4 +401,196 @@ async fn contract_exists(db: &Pool<Postgres>, id: i32) -> Result<bool, sqlx::Err
         0 => Ok(false),
         _ => unreachable!(),
     }
+}
+
+/// Update a contract
+///
+/// I can't get OpenAPI to document this well so I'll write it out here. This request allows you to
+/// update some or all of the fields on a contract. To update a field, its new parameter. For
+/// nullable fields (`description`, `max_subscribers`, and `allow_list`), a `null` value will unset
+/// the parameter. This is not the same as not including the field. For all others parameters, a
+/// `null` is considered a no-op
+#[utoipa::path(
+    patch,
+    path = "/api/v1/contracts/{id}",
+    request_body = PatchContractSchema,
+
+    responses(
+        (status = 200, description = "Changed contract", body = inline(ApiResponse<ContractInfo>)),
+        (status = 400, description = "A part of your request was not valid, check message"),
+    ),
+    security(("bearerAuth" = [])),
+)]
+#[actix_web::patch("/{id}")]
+async fn patch_contract(
+    state: web::Data<AppState>,
+    id: web::Path<i32>,
+    auth: Option<BearerAuth>,
+    sub_tx: web::ThinData<Sender<SubUpdateNofif>>,
+    sessions: web::Data<AuthSessions>,
+    body: web::Json<UpdateContractRequest>,
+) -> Result<HttpResponse, KromerError> {
+    let body = body.into_inner();
+
+    if body.is_empty() {
+        return Err(SubsError::EmptyContractUpdate.into());
+    }
+
+    let session_id = check_bearer(&sessions, auth)?;
+    let contract_id = id.into_inner();
+
+    if contract_id < 0 {
+        return Err(SubsError::InvalidId(contract_id).into());
+    }
+
+    let mut tx = state.pool.begin().await?;
+
+    let mut contract_info: ContractInfo = sqlx::query_as(
+        "SELECT
+            w.address, 
+            c.contract_id,
+            c.title, 
+            c.description, 
+            c.status,
+            c.price, 
+            c.max_subscribers, 
+            c.allow_list, 
+            c.created_at,
+            c.updated_at,
+            c.cron_expr
+        FROM contract_offers AS c LEFT OUTER JOIN wallets AS w ON c.owner_id = w.id WHERE contract_id = $1 FOR UPDATE OF c"
+    ).bind(contract_id).fetch_optional(&mut *tx).await?.ok_or(SubsError::ContractNotFound(contract_id))?;
+
+    if !sessions
+        .is_authed_addr(session_id, &contract_info.address)
+        .ok_or(AuthError::InvalidSession)?
+    {
+        return Err(AuthError::Unauthorized.into());
+    }
+
+    let mut update_subscribers = false;
+
+    match body.title {
+        Some(title) if validate_length(&title, 1, 64) => contract_info.title = title,
+        Some(_) => return Err(SubsError::TitleLength.into()),
+        None => {}
+    }
+
+    match body.description {
+        Patch::Some(desc) if validate_length(&desc, 0, 500) => {
+            contract_info.description = Some(desc)
+        }
+        Patch::Some(_) => return Err(SubsError::InvalidDescription.into()),
+        Patch::Null => contract_info.description = None,
+        Patch::None => {}
+    }
+
+    if let Some(status) = body.status {
+        contract_info.status = status;
+        if matches!(status, ContractStatus::Closed | ContractStatus::Canceled) {
+            update_subscribers = true;
+        }
+    }
+
+    match body.price {
+        Some(price) if price > Decimal::ZERO => {
+            if price != contract_info.price {
+                update_subscribers = true;
+                contract_info.price = price
+            }
+        }
+        Some(_) => return Err(SubsError::InvalidPrice.into()),
+        None => {}
+    }
+
+    if let Some(s) = body.cron_expr
+        && s != contract_info.cron_expr
+    {
+        validate_cron_expr(&s)?;
+
+        contract_info.cron_expr = s;
+        update_subscribers = true;
+    }
+
+    match body.allow_list {
+        Patch::Some(list) => {
+            validate_allow_list(Some(&list))?;
+            contract_info.allow_list = Some(list);
+        }
+        Patch::Null => contract_info.allow_list = None,
+        Patch::None => {}
+    }
+
+    match body.max_subscribers {
+        Patch::Some(max_subs) if max_subs > 0 => {
+            contract_info.max_subscribers = Some(max_subs);
+        }
+        Patch::Some(_) => return Err(SubsError::InvalidMaxSubscribers.into()),
+        Patch::Null => {
+            contract_info.max_subscribers = None;
+        }
+        Patch::None => {}
+    }
+
+    let q = r#"
+        UPDATE contract_offers SET 
+            title = $1, 
+            description = $2, 
+            status = $3,
+            price = $4,
+            cron_expr = $5,
+            max_subscribers = $6,
+            allow_list = $7,
+            updated_at = NOW()
+        WHERE contract_id = $8
+        RETURNING updated_at
+    "#;
+
+    contract_info.updated_at = sqlx::query_scalar(q)
+        .bind(&contract_info.title)
+        .bind(&contract_info.description)
+        .bind(contract_info.status)
+        .bind(contract_info.price)
+        .bind(&contract_info.cron_expr)
+        .bind(contract_info.max_subscribers)
+        .bind(&contract_info.allow_list)
+        .bind(contract_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+    tx.commit().await?;
+
+    if update_subscribers {
+        let res = sub_tx.send(SubUpdateNofif).await;
+        if res.is_err() {
+            tracing::error!("Failed to notify subscription service of update");
+        }
+    }
+
+    Ok(HttpResponse::Ok().json(ApiResponse {
+        data: Some(contract_info),
+        ..Default::default()
+    }))
+}
+
+fn validate_length(s: &str, min: usize, max: usize) -> bool {
+    let s_len = s.chars().count();
+
+    s_len >= min && s_len <= max
+}
+
+/// Parameters to perform partial patches on an endpoint.
+// Utoipa didn't like my patch type so here this is :(s
+#[derive(ToSchema)]
+pub struct PatchContractSchema {
+    pub title: Option<String>,
+    #[schema(nullable)]
+    pub description: Option<String>,
+    pub status: Option<ContractStatus>,
+    pub price: Option<Decimal>,
+    pub cron_expr: Option<String>,
+    #[schema(nullable)]
+    pub max_subscribers: Option<i32>,
+    #[schema(nullable)]
+    pub allow_list: Option<Vec<String>>,
 }

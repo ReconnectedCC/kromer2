@@ -18,5 +18,4 @@ pub mod build_info {
 #[derive(Debug)]
 pub struct AppState {
     pub pool: Pool<Postgres>,
-    pub auth: auth::AuthSessions,
 }

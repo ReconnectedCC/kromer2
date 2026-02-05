@@ -3,7 +3,7 @@ use actix_web_httpauth::extractors::bearer::BearerAuth;
 
 use crate::{
     AppState,
-    auth::check_bearer,
+    auth::{AuthSessions, check_bearer},
     errors::KromerError,
     models::{
         krist::auth::LoginDetails,
@@ -28,12 +28,12 @@ pub fn config(cfg: &mut web::ServiceConfig) {
 #[post("/login")]
 pub async fn login(
     state: web::Data<AppState>,
+    sessions: web::Data<AuthSessions>,
     query: web::Json<LoginDetails>,
 ) -> Result<HttpResponse, KromerError> {
     let inner = query.into_inner();
 
-    let (token, expires, address) = state
-        .auth
+    let (token, expires, address) = sessions
         .register_pk(&state.pool, &inner.private_key)
         .await?;
 
@@ -60,12 +60,12 @@ pub async fn login(
 )]
 #[post("/logout")]
 pub async fn logout(
-    state: web::Data<AppState>,
+    sessions: web::Data<AuthSessions>,
     auth: Option<BearerAuth>,
 ) -> Result<HttpResponse, KromerError> {
-    let session_id = check_bearer(&state, auth).await?;
+    let session_id = check_bearer(&sessions, auth)?;
 
-    state.auth.revoke(session_id)?;
+    sessions.revoke(session_id)?;
 
     Ok(HttpResponse::Ok().finish())
 }

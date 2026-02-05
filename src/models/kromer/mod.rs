@@ -4,17 +4,17 @@ pub mod subs;
 pub mod wallets;
 pub mod websockets;
 
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 
-/// Defines our update semantics. Does not implement [Serialize](serde::Serialize)
-/// since this type should never be passed back to a user.
+/// Defines our update semantics. While this derives [Serialize](serde::Serialize), it should never
+/// actually be used. Only derives it to provide OpenAPI schema
 ///
 /// When using as part of a struct, the value must be marked with the `#[serde(default)]`
 /// attribute.
 ///
 /// See: <https://itsfoxstudio.substack.com/p/rust-patterns-patch-type>
 /// Adapted from: <https://github.com/itsfoxstudio/value-extra>
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Eq, Default)]
 pub enum Patch<T> {
     /// A new value to update the field to
     Some(T),
@@ -23,6 +23,12 @@ pub enum Patch<T> {
     None,
     /// Value was explicitly `null`, clear/reset the field
     Null,
+}
+
+impl<T> Patch<T> {
+    pub fn is_none(&self) -> bool {
+        matches!(self, Self::None)
+    }
 }
 
 impl<T> From<Option<T>> for Patch<T> {
