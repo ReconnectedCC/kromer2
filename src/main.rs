@@ -41,6 +41,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             routes::v1::auth::logout,
             routes::v1::subs::create_contract,
             routes::v1::subs::list_contracts,
+            routes::v1::subs::contract_by_id,
+            routes::v1::subs::contract_subscribers,
             routes::krist::transactions::transaction_list,
             routes::krist::transactions::transaction_create,
             routes::krist::transactions::transaction_latest,
@@ -114,6 +116,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             kromer::models::kromer::auth::AuthenticatedResponse,
             kromer::models::kromer::subs::ContractCreateRequest,
             kromer::models::kromer::subs::ContractInfo,
+            kromer::models::kromer::subs::SubscriptionInfo,
         )),
         modifiers(&AuthAddon),
     )]

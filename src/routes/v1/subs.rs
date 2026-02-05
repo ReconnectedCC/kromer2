@@ -1,9 +1,6 @@
 use std::str::FromStr;
 
-use actix_web::{
-    HttpResponse, get, post,
-    web::{self, service},
-};
+use actix_web::{HttpResponse, get, post, web};
 use actix_web_httpauth::extractors::bearer::BearerAuth;
 use chrono::Utc;
 use croner::Cron;
@@ -16,7 +13,10 @@ use crate::{
     errors::{KromerError, auth::AuthError, subs::SubsError},
     models::kromer::{
         responses::{ApiResponse, PaginatedResponse},
-        subs::{ContractCreateRequest, ContractInfo, ContractQueryParams},
+        subs::{
+            ContractCreateRequest, ContractInfo, ContractQueryParams, ListSubscribersParams,
+            SubscriptionInfo,
+        },
     },
     utils::validation::is_valid_kromer_address,
 };
@@ -26,7 +26,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::scope("/subs")
             .service(create_contract)
             .service(list_contracts)
-            .service(contract_by_id),
+            .service(contract_by_id)
+            .service(contract_subscribers),
     );
 }
 
@@ -232,6 +233,17 @@ pub async fn list_contracts(
 }
 
 /// Fetch contract info by ID
+#[utoipa::path(
+    get,
+    path = "/api/v1/subs/c/{id}",
+    params(
+        ("id", description = "Contract ID")
+    ),
+    responses(
+        (status = 200, description = "Contract info", body = ApiResponse<ContractInfo>),
+        (status = 404, description = "Contract not found")
+    )
+)]
 #[get("/c/{id}")]
 pub async fn contract_by_id(
     state: web::Data<AppState>,
@@ -263,4 +275,76 @@ pub async fn contract_by_id(
         data: Some(info),
         ..Default::default()
     }))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/c",
+    params(ListSubscribersParams),
+    responses(
+        (status = 200, description = "List subscribers", body = ApiResponse<PaginatedResponse<SubscriptionInfo>>)
+    )
+)]
+#[get("c/{id}/subscribers")]
+pub async fn contract_subscribers(
+    state: web::Data<AppState>,
+    id: web::Path<i32>,
+    query: web::Query<ListSubscribersParams>,
+) -> Result<HttpResponse, KromerError> {
+    let id = id.into_inner();
+
+    let offset = query.offset.unwrap_or(0).abs() as i64;
+    let limit = query.limit.unwrap_or(50).abs().min(500) as i64;
+
+    let is_active = query.is_active.unwrap_or_default();
+
+    if id < 0 {
+        return Err(SubsError::InvalidId(id).into());
+    }
+
+    let mut list_qb = QueryBuilder::new(
+        "SELECT
+            w.address,
+            s.subscription_id,
+            s.status,
+            s.lapsed_at,
+            s.started_at
+        FROM subscriptions AS s LEFT JOIN wallets AS w ON s.wallet_id = w.id",
+    );
+
+    let mut count_qb = QueryBuilder::new(
+        "SELECT COUNT(*) FROM subscriptions AS s LEFT JOIN wallets AS w on s.wallet_id = w.id",
+    );
+
+    if is_active {
+        let frag = " WHERE s.status = 'active'";
+
+        list_qb.push(frag);
+        count_qb.push(frag);
+    }
+
+    list_qb.push(" ORDER BY s.subscription_id LIMIT ");
+    list_qb.push_bind(limit);
+    list_qb.push(" OFFSET ");
+    list_qb.push_bind(offset);
+
+    let items: Vec<SubscriptionInfo> = list_qb.build_query_as().fetch_all(&state.pool).await?;
+    let table_len: i64 = count_qb.build_query_scalar().fetch_one(&state.pool).await?;
+
+    let remaining = (table_len - (offset + items.len() as i64))
+        .max(0)
+        .try_into()
+        .expect("Value cannot be negative");
+
+    let res = ApiResponse {
+        data: Some(PaginatedResponse {
+            count: items.len(),
+
+            items,
+            remaining,
+        }),
+        ..Default::default()
+    };
+
+    Ok(HttpResponse::Ok().json(res))
 }
