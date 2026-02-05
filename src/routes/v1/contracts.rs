@@ -5,7 +5,7 @@ use actix_web_httpauth::extractors::bearer::BearerAuth;
 use chrono::Utc;
 use croner::Cron;
 use rust_decimal::Decimal;
-use sqlx::QueryBuilder;
+use sqlx::{Pool, Postgres, QueryBuilder};
 
 use crate::{
     AppState,
@@ -23,7 +23,7 @@ use crate::{
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
-        web::scope("/subs")
+        web::scope("/contracts")
             .service(create_contract)
             .service(list_contracts)
             .service(contract_by_id)
@@ -36,7 +36,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
 /// Creates a new contract under the currently authorized wallet.
 #[utoipa::path(
     post,
-    path = "/api/v1/subs/c",
+    path = "/api/v1/contracts",
     request_body = ContractCreateRequest,
     responses(
         (status = 200, description = "Created contract", body = ApiResponse<ContractInfo>),
@@ -44,7 +44,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     ),
     security(("bearerAuth" = [])),
 )]
-#[post("/c")]
+#[post("")]
 pub async fn create_contract(
     state: web::Data<AppState>,
     auth: Option<BearerAuth>,
@@ -140,13 +140,13 @@ fn validate_body(body: &ContractCreateRequest) -> Result<(), SubsError> {
 /// List contracts
 #[utoipa::path(
     get,
-    path = "/api/v1/c",
+    path = "/api/v1/contracts",
     params(ContractQueryParams),
     responses(
         (status = 200, description = "List contracts", body = ApiResponse<PaginatedResponse<ContractInfo>>)
     )
 )]
-#[get("/c")]
+#[get("")]
 pub async fn list_contracts(
     state: web::Data<AppState>,
     query: web::Query<ContractQueryParams>,
@@ -235,7 +235,7 @@ pub async fn list_contracts(
 /// Fetch contract info by ID
 #[utoipa::path(
     get,
-    path = "/api/v1/subs/c/{id}",
+    path = "/api/v1/contracts/{id}",
     params(
         ("id", description = "Contract ID")
     ),
@@ -244,7 +244,7 @@ pub async fn list_contracts(
         (status = 404, description = "Contract not found")
     )
 )]
-#[get("/c/{id}")]
+#[get("/{id}")]
 pub async fn contract_by_id(
     state: web::Data<AppState>,
     id: web::Path<i32>,
@@ -279,13 +279,13 @@ pub async fn contract_by_id(
 
 #[utoipa::path(
     get,
-    path = "/api/v1/c",
+    path = "/api/v1/contracts/{id}/subscribers",
     params(ListSubscribersParams),
     responses(
         (status = 200, description = "List subscribers", body = ApiResponse<PaginatedResponse<SubscriptionInfo>>)
     )
 )]
-#[get("c/{id}/subscribers")]
+#[get("/{id}/subscribers")]
 pub async fn contract_subscribers(
     state: web::Data<AppState>,
     id: web::Path<i32>,
@@ -302,6 +302,10 @@ pub async fn contract_subscribers(
         return Err(SubsError::InvalidId(id).into());
     }
 
+    if !contract_exists(&state.pool, id).await? {
+        return Err(SubsError::ContractNotFound(id).into());
+    }
+
     let mut list_qb = QueryBuilder::new(
         "SELECT
             w.address,
@@ -316,12 +320,16 @@ pub async fn contract_subscribers(
         "SELECT COUNT(*) FROM subscriptions AS s LEFT JOIN wallets AS w on s.wallet_id = w.id",
     );
 
-    if is_active {
-        let frag = " WHERE s.status = 'active'";
+    let frag = if is_active {
+        " WHERE s.status = 'active' AND s.contract_id = "
+    } else {
+        " WHERE s.contract_id = "
+    };
 
-        list_qb.push(frag);
-        count_qb.push(frag);
-    }
+    list_qb.push(frag);
+    list_qb.push_bind(id);
+    count_qb.push(frag);
+    count_qb.push_bind(id);
 
     list_qb.push(" ORDER BY s.subscription_id LIMIT ");
     list_qb.push_bind(limit);
@@ -329,7 +337,13 @@ pub async fn contract_subscribers(
     list_qb.push_bind(offset);
 
     let items: Vec<SubscriptionInfo> = list_qb.build_query_as().fetch_all(&state.pool).await?;
-    let table_len: i64 = count_qb.build_query_scalar().fetch_one(&state.pool).await?;
+    let Some(table_len): Option<i64> = count_qb
+        .build_query_scalar()
+        .fetch_optional(&state.pool)
+        .await?
+    else {
+        return Err(SubsError::ContractNotFound(id).into());
+    };
 
     let remaining = (table_len - (offset + items.len() as i64))
         .max(0)
@@ -347,4 +361,18 @@ pub async fn contract_subscribers(
     };
 
     Ok(HttpResponse::Ok().json(res))
+}
+
+async fn contract_exists(db: &Pool<Postgres>, id: i32) -> Result<bool, sqlx::Error> {
+    let res: i64 =
+        sqlx::query_scalar("SELECT COUNT(1) FROM contract_offers WHERE contract_id = $1")
+            .bind(id)
+            .fetch_one(db)
+            .await?;
+
+    match res {
+        1 => Ok(true),
+        0 => Ok(false),
+        _ => unreachable!(),
+    }
 }
