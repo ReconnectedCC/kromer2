@@ -15,8 +15,6 @@ async fn get_session(
     server: web::Data<WebSocketServer>,
     params: web::Query<SessionQuery>,
 ) -> Result<HttpResponse, KromerError> {
-    let sessions = &server.inner.lock().await.sessions;
-
     let target_uuid = match params.session.parse::<Uuid>() {
         Ok(uuid) => uuid,
         Err(err) => {
@@ -25,7 +23,7 @@ async fn get_session(
         }
     };
 
-    let session_ref = match sessions.get(&target_uuid) {
+    let session_ref = match server.sessions.get(&target_uuid) {
         Some(data) => data,
         None => {
             tracing::error!("Invalid session: {}", target_uuid);
@@ -40,7 +38,7 @@ async fn get_session(
 
 #[get("/sessions")]
 async fn get_sessions(server: web::Data<WebSocketServer>) -> Result<HttpResponse, KromerError> {
-    let sessions = &server.inner.lock().await.sessions;
+    let sessions = server.sessions.as_ref();
 
     Ok(HttpResponse::Ok().json(sessions))
 }

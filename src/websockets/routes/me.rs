@@ -17,8 +17,7 @@ pub async fn get_myself(
     uuid: &Uuid,
     msg_id: Option<usize>,
 ) -> WebSocketMessage {
-    let inner = server.inner.lock().await;
-    let entry = inner
+    let entry = server
         .sessions
         .get(uuid)
         .expect("Expected session to exist, somehow it does not");
