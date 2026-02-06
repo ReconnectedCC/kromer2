@@ -21,6 +21,10 @@ pub const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 pub const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 pub const TOKEN_EXPIRATION: Duration = Duration::from_secs(30);
 
+type BroadcastFuture = std::pin::Pin<
+    Box<dyn std::future::Future<Output = (Uuid, Result<(), actix_ws::Closed>)> + Send>,
+>;
+
 #[derive(Clone)]
 pub struct WebSocketServer {
     pub sessions: Arc<DashMap<Uuid, WebSocketSessionData>>,
@@ -71,8 +75,7 @@ impl WebSocketServer {
         let uuid = Uuid::new_v4();
 
         tracing::debug!("Inserting token {uuid} into cache");
-        let token_data = self.pending_tokens.insert(uuid, token_data);
-        drop(token_data); // Drop manually to ensure the hashmap bucket is no longer locked.
+        let _ = self.pending_tokens.insert(uuid, token_data);
 
         let pending_tokens = self.pending_tokens.clone();
         actix_web::rt::spawn(async move {
@@ -139,10 +142,12 @@ impl WebSocketServer {
             serde_json::to_string(&event).expect("Failed to turn event message into a string");
         tracing::debug!("Broadcasting event: {msg}");
 
-        let sessions = self.sessions.iter_mut();
+        let mut futures: FuturesUnordered<BroadcastFuture> = FuturesUnordered::new();
+        let sessions = self.sessions.iter();
 
-        for mut session in sessions {
-            let (uuid, client_data) = session.pair_mut();
+        for entry in sessions {
+            let uuid = *entry.key();
+            let client_data = entry.value();
 
             if let WebSocketMessageInner::Event { ref event } = event.r#type {
                 match event {
@@ -156,14 +161,9 @@ impl WebSocketServer {
                             && subs.any(|t| t.eq(&WebSocketSubscriptionType::OwnTransactions)))
                             || subs.any(|t| t.eq(&WebSocketSubscriptionType::Transactions))
                         {
-                            let result = client_data.session.text(msg.clone()).await;
-                            if result.is_err() {
-                                tracing::warn!(
-                                    "Got an unexpected closed session in transactions branch"
-                                );
-
-                                self.cleanup_session(uuid).await;
-                            }
+                            let mut session = client_data.session.clone();
+                            let msg = msg.clone();
+                            futures.push(Box::pin(async move { (uuid, session.text(msg).await) }));
                         }
                     }
                     WebSocketEvent::Name { name } => {
@@ -173,15 +173,19 @@ impl WebSocketServer {
                             && subs.any(|t| t.eq(&WebSocketSubscriptionType::OwnNames))
                             || subs.any(|t| t.eq(&WebSocketSubscriptionType::Names))
                         {
-                            let result = client_data.session.text(msg.clone()).await;
-                            if result.is_err() {
-                                tracing::warn!("Got an unexpected closed session in name branch");
-
-                                self.cleanup_session(uuid).await;
-                            }
+                            let mut session = client_data.session.clone();
+                            let msg = msg.clone();
+                            futures.push(Box::pin(async move { (uuid, session.text(msg).await) }));
                         }
                     }
                 }
+            }
+        }
+
+        while let Some((uuid, result)) = futures.next().await {
+            if result.is_err() {
+                tracing::warn!("Got an unexpected closed session");
+                self.cleanup_session(&uuid).await;
             }
         }
     }
@@ -192,23 +196,23 @@ impl WebSocketServer {
         let msg = msg.into();
         tracing::debug!("Sending msg: {msg}");
 
-        let mut futures = FuturesUnordered::new();
+        let mut futures: FuturesUnordered<BroadcastFuture> = FuturesUnordered::new();
 
-        for mut entry in self.sessions.iter_mut() {
+        for entry in self.sessions.iter() {
+            let uuid = *entry.key();
+            let mut session = entry.value().session.clone();
+
             let msg = msg.clone();
 
-            futures.push(async move {
-                let (uuid, data) = entry.pair_mut();
-                let res = data.session.text(msg).await;
-                if res.is_err() {
-                    tracing::warn!("Got an unexpected closed session");
-
-                    self.cleanup_session(uuid).await;
-                }
-            });
+            futures.push(Box::pin(async move { (uuid, session.text(msg).await) }));
         }
 
-        while let Some(_result) = futures.next().await {}
+        while let Some((uuid, result)) = futures.next().await {
+            if result.is_err() {
+                tracing::warn!("Got an unexpected closed session");
+                self.cleanup_session(&uuid).await;
+            }
+        }
     }
 
     pub async fn fetch_session_data(&self, uuid: &Uuid) -> Option<WebSocketSessionData> {
