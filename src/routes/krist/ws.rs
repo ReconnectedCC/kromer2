@@ -100,7 +100,7 @@ pub async fn gateway(
         .aggregate_continuations()
         .max_continuation_size(2 * 1024 * 1024);
 
-    server.insert_session(uuid, session.clone(), data).await; // Not a big fan of cloning but here it is needed.
+    server.insert_session(uuid, session.clone(), data); // Not a big fan of cloning but here it is needed.
 
     let alive = Arc::new(Mutex::new(Instant::now()));
     let session_closed = Arc::new(AtomicBool::new(false));

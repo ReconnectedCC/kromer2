@@ -42,7 +42,7 @@ impl WebSocketServer {
     }
 
     #[tracing::instrument(skip_all, fields(address = data.address))]
-    pub async fn insert_session(&self, uuid: Uuid, session: Session, data: WebSocketTokenData) {
+    pub fn insert_session(&self, uuid: Uuid, session: Session, data: WebSocketTokenData) {
         let subscriptions = DashSet::from_iter([
             WebSocketSubscriptionType::OwnTransactions,
             WebSocketSubscriptionType::Blocks,
