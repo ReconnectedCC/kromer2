@@ -146,17 +146,21 @@ impl WebSocketServer {
             let uuid = *entry.key();
             let client_data = entry.value();
 
+            // TODO: Somehow make this prettier...
             if let WebSocketMessageInner::Event { ref event } = event.r#type {
                 match event {
                     WebSocketEvent::Block { .. } => todo!(),
                     WebSocketEvent::Transaction { transaction } => {
-                        let mut subs = client_data.subscriptions.iter();
                         let transaction_from = transaction.from.as_deref().unwrap_or_default();
                         if (!client_data.is_guest()
                             && (client_data.address == transaction.to
                                 || client_data.address == transaction_from)
-                            && subs.any(|t| t.eq(&WebSocketSubscriptionType::OwnTransactions)))
-                            || subs.any(|t| t.eq(&WebSocketSubscriptionType::Transactions))
+                            && client_data
+                                .subscriptions
+                                .contains(&WebSocketSubscriptionType::OwnTransactions))
+                            || client_data
+                                .subscriptions
+                                .contains(&WebSocketSubscriptionType::Transactions)
                         {
                             let mut session = client_data.session.clone();
                             let msg = msg.clone();
@@ -164,11 +168,14 @@ impl WebSocketServer {
                         }
                     }
                     WebSocketEvent::Name { name } => {
-                        let mut subs = client_data.subscriptions.iter();
-                        if !client_data.is_guest()
+                        if (!client_data.is_guest()
                             && (client_data.address == name.owner)
-                            && subs.any(|t| t.eq(&WebSocketSubscriptionType::OwnNames))
-                            || subs.any(|t| t.eq(&WebSocketSubscriptionType::Names))
+                            && client_data
+                                .subscriptions
+                                .contains(&WebSocketSubscriptionType::OwnNames))
+                            || client_data
+                                .subscriptions
+                                .contains(&WebSocketSubscriptionType::Names)
                         {
                             let mut session = client_data.session.clone();
                             let msg = msg.clone();
