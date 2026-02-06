@@ -17,7 +17,7 @@ use crate::{
 async fn ws_session_get_count(
     server: web::Data<WebSocketServer>,
 ) -> Result<HttpResponse, KromerError> {
-    let sessions = &server.sessions;
+    let sessions = server.sessions.as_ref();
 
     let response = ApiResponse {
         data: Some(SessionCountResponse {

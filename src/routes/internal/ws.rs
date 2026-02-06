@@ -38,7 +38,7 @@ async fn get_session(
 
 #[get("/sessions")]
 async fn get_sessions(server: web::Data<WebSocketServer>) -> Result<HttpResponse, KromerError> {
-    let sessions = &server.sessions;
+    let sessions = server.sessions.as_ref();
 
     Ok(HttpResponse::Ok().json(sessions))
 }
