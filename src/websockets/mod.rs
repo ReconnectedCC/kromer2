@@ -11,7 +11,6 @@ use dashmap::{DashMap, DashSet};
 use errors::WebSocketServerError;
 use futures_util::{StreamExt, stream::FuturesUnordered};
 use std::{sync::Arc, time::Duration};
-use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use types::common::{WebSocketSessionData, WebSocketSubscriptionType, WebSocketTokenData};
@@ -24,13 +23,8 @@ pub const TOKEN_EXPIRATION: Duration = Duration::from_secs(30);
 
 #[derive(Clone)]
 pub struct WebSocketServer {
-    pub inner: Arc<Mutex<WebSocketServerInner>>,
-}
-
-#[derive(Clone)]
-pub struct WebSocketServerInner {
-    pub sessions: DashMap<Uuid, WebSocketSessionData>,
-    pub pending_tokens: DashMap<Uuid, WebSocketTokenData>,
+    pub sessions: Arc<DashMap<Uuid, WebSocketSessionData>>,
+    pub pending_tokens: Arc<DashMap<Uuid, WebSocketTokenData>>,
 }
 
 impl Default for WebSocketServer {
@@ -41,13 +35,9 @@ impl Default for WebSocketServer {
 
 impl WebSocketServer {
     pub fn new() -> Self {
-        let inner = WebSocketServerInner {
-            sessions: DashMap::with_capacity(100),
-            pending_tokens: DashMap::with_capacity(50),
-        };
-
         Self {
-            inner: Arc::new(Mutex::new(inner)),
+            sessions: Arc::new(DashMap::with_capacity(100)),
+            pending_tokens: Arc::new(DashMap::with_capacity(50)),
         }
     }
 
@@ -66,33 +56,30 @@ impl WebSocketServer {
             subscriptions,
         };
 
-        self.inner.lock().await.sessions.insert(uuid, session_data);
+        self.sessions.insert(uuid, session_data);
     }
 
     #[tracing::instrument(skip(self))]
     pub async fn cleanup_session(&self, uuid: &Uuid) {
-        self.inner.lock().await.sessions.remove(uuid);
+        self.sessions.remove(uuid);
 
         tracing::info!("Cleaned session");
     }
 
     #[tracing::instrument(skip_all, fields(address = token_data.address))]
     pub async fn obtain_token(&self, token_data: WebSocketTokenData) -> Uuid {
-        let inner = self.inner.lock().await;
-        let inner_clone = self.inner.clone();
-
         let uuid = Uuid::new_v4();
 
         tracing::debug!("Inserting token {uuid} into cache");
-        let token_data = inner.pending_tokens.insert(uuid, token_data);
+        let token_data = self.pending_tokens.insert(uuid, token_data);
         drop(token_data); // Drop manually to ensure the hashmap bucket is no longer locked.
 
+        let pending_tokens = self.pending_tokens.clone();
         actix_web::rt::spawn(async move {
             time::sleep(TOKEN_EXPIRATION).await;
 
             // I don't think that this if statement would ever fail? considering we literally just put the fucking token in the map, lol.
-            let inner_mutex = inner_clone.lock().await;
-            if inner_mutex.pending_tokens.remove(&uuid).is_some() {
+            if pending_tokens.remove(&uuid).is_some() {
                 tracing::info!("Removed expired token {uuid}");
             }
         });
@@ -104,11 +91,9 @@ impl WebSocketServer {
         &self,
         uuid: &Uuid,
     ) -> Result<WebSocketTokenData, errors::WebSocketServerError> {
-        let inner = self.inner.lock().await;
-
         tracing::debug!("Removing token from cache");
 
-        let (_uuid, token) = inner
+        let (_uuid, token) = self
             .pending_tokens
             .remove(uuid)
             .ok_or(WebSocketServerError::TokenNotFound)?;
@@ -118,9 +103,7 @@ impl WebSocketServer {
 
     #[tracing::instrument(skip_all, fields(event = ?event))]
     pub async fn subscribe_to_event(&self, uuid: &Uuid, event: WebSocketSubscriptionType) {
-        let inner = self.inner.lock().await;
-
-        let entry = inner.sessions.get_mut(uuid);
+        let entry = self.sessions.get_mut(uuid);
         if let Some(data) = entry {
             tracing::info!("Session subscribed to event");
             data.subscriptions.insert(event);
@@ -131,9 +114,7 @@ impl WebSocketServer {
 
     #[tracing::instrument(skip_all, fields(event = ?event))]
     pub async fn unsubscribe_from_event(&self, uuid: &Uuid, event: &WebSocketSubscriptionType) {
-        let inner = self.inner.lock().await;
-
-        let entry = inner.sessions.get_mut(uuid);
+        let entry = self.sessions.get_mut(uuid);
         if let Some(data) = entry {
             tracing::info!("Session unsubscribed from event");
             data.subscriptions.remove(event);
@@ -141,9 +122,7 @@ impl WebSocketServer {
     }
 
     pub async fn get_subscription_list(&self, uuid: &Uuid) -> Vec<WebSocketSubscriptionType> {
-        let inner = self.inner.lock().await;
-
-        let entry = inner.sessions.get(uuid);
+        let entry = self.sessions.get(uuid);
         if let Some(data) = entry {
             let subscriptions: Vec<WebSocketSubscriptionType> =
                 data.subscriptions.iter().map(|x| x.clone()).collect(); // not my fav piece of code but it works
@@ -160,8 +139,7 @@ impl WebSocketServer {
             serde_json::to_string(&event).expect("Failed to turn event message into a string");
         tracing::debug!("Broadcasting event: {msg}");
 
-        let inner = self.inner.lock().await;
-        let sessions = inner.sessions.iter_mut();
+        let sessions = self.sessions.iter_mut();
 
         for mut session in sessions {
             let (uuid, client_data) = session.pair_mut();
@@ -214,10 +192,9 @@ impl WebSocketServer {
         let msg = msg.into();
         tracing::debug!("Sending msg: {msg}");
 
-        let inner = self.inner.lock().await;
         let mut futures = FuturesUnordered::new();
 
-        for mut entry in inner.sessions.iter_mut() {
+        for mut entry in self.sessions.iter_mut() {
             let msg = msg.clone();
 
             futures.push(async move {
@@ -235,10 +212,7 @@ impl WebSocketServer {
     }
 
     pub async fn fetch_session_data(&self, uuid: &Uuid) -> Option<WebSocketSessionData> {
-        let inner = self.inner.lock().await;
-
-        inner
-            .sessions
+        self.sessions
             .get(uuid)
             .map(|session| session.value().clone())
     }

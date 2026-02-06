@@ -27,8 +27,7 @@ pub async fn perform_login(
             if response.authed {
                 let wallet = response.model;
 
-                let inner = server.inner.lock().await;
-                let mut session = inner
+                let mut session = server
                     .sessions
                     .get_mut(uuid)
                     .expect("Expected the session to exist, why doesn't it?");
@@ -78,9 +77,7 @@ pub async fn perform_logout(
     uuid: &Uuid,
     msg_id: Option<usize>,
 ) -> WebSocketMessage {
-    let inner = server.inner.lock().await; // seems pretty silly but i dont wanna mess with lifetimes
-
-    let mut session = inner
+    let mut session = server
         .sessions
         .get_mut(uuid)
         .expect("Expected the session to exist, why doesn't it?");
