@@ -106,8 +106,7 @@ impl WebSocketServer {
 
     #[tracing::instrument(skip_all, fields(event = ?event))]
     pub async fn subscribe_to_event(&self, uuid: &Uuid, event: WebSocketSubscriptionType) {
-        let entry = self.sessions.get_mut(uuid);
-        if let Some(data) = entry {
+        if let Some(data) = self.sessions.get_mut(uuid) {
             tracing::info!("Session subscribed to event");
             data.subscriptions.insert(event);
         } else {
@@ -117,16 +116,14 @@ impl WebSocketServer {
 
     #[tracing::instrument(skip_all, fields(event = ?event))]
     pub async fn unsubscribe_from_event(&self, uuid: &Uuid, event: &WebSocketSubscriptionType) {
-        let entry = self.sessions.get_mut(uuid);
-        if let Some(data) = entry {
+        if let Some(data) = self.sessions.get_mut(uuid) {
             tracing::info!("Session unsubscribed from event");
             data.subscriptions.remove(event);
         }
     }
 
     pub async fn get_subscription_list(&self, uuid: &Uuid) -> Vec<WebSocketSubscriptionType> {
-        let entry = self.sessions.get(uuid);
-        if let Some(data) = entry {
+        if let Some(data) = self.sessions.get(uuid) {
             let subscriptions: Vec<WebSocketSubscriptionType> =
                 data.subscriptions.iter().map(|x| x.clone()).collect(); // not my fav piece of code but it works
             return subscriptions;
