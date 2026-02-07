@@ -47,12 +47,12 @@ pub async fn setup_ws(
 
             let token_data = WebSocketTokenData::new(model.address, Some(private_key));
 
-            server.obtain_token(token_data).await
+            server.obtain_token(token_data)
         }
         None => {
             let token_data = WebSocketTokenData::new("guest".into(), None);
 
-            server.obtain_token(token_data).await
+            server.obtain_token(token_data)
         }
     };
 
@@ -90,7 +90,6 @@ pub async fn gateway(
 
     let data = server
         .use_token(&uuid)
-        .await
         .map_err(|_| KristError::WebSocket(WebSocketError::InvalidWebsocketToken))?;
 
     let (response, mut session, stream) = actix_ws::handle(&req, body)?;

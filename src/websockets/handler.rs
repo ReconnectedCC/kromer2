@@ -48,19 +48,19 @@ pub async fn process_text_msg(
         WebSocketMessageInner::Login { private_key } => {
             routes::auth::perform_login(pool, server, uuid, private_key, msg_id).await
         }
-        WebSocketMessageInner::Logout => routes::auth::perform_logout(server, uuid, msg_id).await,
+        WebSocketMessageInner::Logout => routes::auth::perform_logout(server, uuid, msg_id),
         WebSocketMessageInner::Me => routes::me::get_myself(pool, server, uuid, msg_id).await,
         WebSocketMessageInner::Subscribe { event } => {
-            routes::subscriptions::subscribe(server, uuid, event, msg_id).await
+            routes::subscriptions::subscribe(server, uuid, event, msg_id)
         }
         WebSocketMessageInner::GetSubscriptionLevel => {
-            routes::subscriptions::get_subscription_level(server, uuid, msg_id).await
+            routes::subscriptions::get_subscription_level(server, uuid, msg_id)
         }
         WebSocketMessageInner::GetValidSubscriptionLevels => {
-            routes::subscriptions::get_valid_subscription_levels(msg_id).await
+            routes::subscriptions::get_valid_subscription_levels(msg_id)
         }
         WebSocketMessageInner::Unsubscribe { event } => {
-            routes::subscriptions::unsubscribe(server, uuid, event, msg_id).await
+            routes::subscriptions::unsubscribe(server, uuid, event, msg_id)
         }
         WebSocketMessageInner::MakeTransaction {
             private_key,
@@ -71,7 +71,7 @@ pub async fn process_text_msg(
             let private_key = match private_key {
                 Some(key) => key,
                 None => {
-                    let session_data = server.fetch_session_data(uuid).await;
+                    let session_data = server.fetch_session_data(uuid);
 
                     if let Some(session_data) = session_data
                         && let Some(private_key) = session_data.private_key
