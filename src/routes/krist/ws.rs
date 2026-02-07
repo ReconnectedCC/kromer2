@@ -162,13 +162,14 @@ pub async fn gateway(
                 },
             };
 
-            let return_message =
-                serde_json::to_string(&message).unwrap_or_else(|_| "{}".to_string()); // ...what
-            if session2.text(return_message).await.is_err() {
-                tracing::debug!("Failed to send keepalive to session");
-                let _ = session2.close(None).await;
-                cleanup_session(server2, uuid, session_closed2);
-                break;
+            if let Ok(msg) = serde_json::to_string(&message) {
+                // If keepalive send fails, just log it - the ping already succeeded
+                // so the connection is still alive. Don't cleanup here.
+                if session2.text(msg).await.is_err() {
+                    tracing::debug!(
+                        "Failed to send keepalive text message (connection may have just closed)"
+                    );
+                }
             }
         }
     });
