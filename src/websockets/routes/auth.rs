@@ -27,10 +27,15 @@ pub async fn perform_login(
             if response.authed {
                 let wallet = response.model;
 
-                if let Some(mut session) = server.sessions.get_mut(uuid) {
-                    session.address = wallet.address.clone();
-                    session.private_key = Some(private_key);
-
+                if server
+                    .sessions
+                    .update_async(uuid, |_k, v| {
+                        v.address = wallet.address.clone();
+                        v.private_key = Some(private_key);
+                    })
+                    .await
+                    .is_some()
+                {
                     tracing::debug!("Session successfully logged in");
 
                     WebSocketMessage {
@@ -87,10 +92,14 @@ pub fn perform_logout(
     uuid: &Uuid,
     msg_id: Option<usize>,
 ) -> WebSocketMessage {
-    if let Some(mut session) = server.sessions.get_mut(uuid) {
-        session.address = String::from("guest");
-        session.private_key = None;
-
+    if server
+        .sessions
+        .update_sync(uuid, |_k, v| {
+            v.address = String::from("guest");
+            v.private_key = None;
+        })
+        .is_some()
+    {
         WebSocketMessage {
             ok: Some(true),
             id: msg_id,

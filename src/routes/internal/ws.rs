@@ -23,7 +23,7 @@ async fn get_session(
         }
     };
 
-    let session_ref = match server.sessions.get(&target_uuid) {
+    let session_ref = match server.sessions.get_async(&target_uuid).await {
         Some(data) => data,
         None => {
             tracing::error!("Invalid session: {}", target_uuid);
@@ -31,7 +31,8 @@ async fn get_session(
         }
     };
 
-    let session_data = session_ref.value();
+    // Yucky clone but it is what it is
+    let session_data = session_ref.clone();
 
     Ok(HttpResponse::Ok().json(session_data))
 }

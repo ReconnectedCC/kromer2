@@ -17,12 +17,12 @@ pub async fn get_myself(
     uuid: &Uuid,
     msg_id: Option<usize>,
 ) -> WebSocketMessage {
-    let entry = server
+    let session_data = server
         .sessions
-        .get(uuid)
+        .get_async(uuid)
+        .await
         .expect("Expected session to exist, somehow it does not");
 
-    let session_data = entry.value();
     if session_data.is_guest() {
         return WebSocketMessage {
             ok: Some(true),
