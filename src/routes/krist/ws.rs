@@ -175,71 +175,71 @@ pub async fn gateway(
 
     // Messgage handling code here
     actix_web::rt::spawn(async move {
-        while let Some(Ok(msg)) = stream.recv().await {
-            match msg {
-                AggregatedMessage::Ping(bytes) => {
-                    if session.pong(&bytes).await.is_err() {
-                        tracing::error!("Failed to send pong back to session");
-                        return;
-                    }
-                }
-
-                AggregatedMessage::Text(string) => {
-                    if string.chars().count() > 512 {
-                        // TODO: Possibly use error message struct in models
-                        // This isn't super necessary though and this shortcut saves some unnecessary error handling...
-                        let error_msg = json!({
-                            "ok": "false",
-                            "error": "message_too_long",
-                            "message": "Message larger than 512 characters",
-                            "type": "error"
-                        })
-                        .to_string();
-                        tracing::info!("Message received was larger than 512 characters");
-
-                        let _ = session.text(error_msg).await;
-                    } else {
-                        tracing::debug!("Message received: {string}");
-
-                        let process_result =
-                            handler::process_text_msg(&state.pool, &server, &uuid, &string).await;
-
-                        if let Ok(message) = process_result {
-                            match serde_json::to_string(&message) {
-                                Ok(msg) => {
-                                    let _ = session.text(msg).await;
-                                }
-                                Err(e) => {
-                                    tracing::error!("Failed to serialize message: {}", e);
-                                }
-                            }
-                        } else {
-                            tracing::error!("Error in processing message")
+        async {
+            while let Some(Ok(msg)) = stream.recv().await {
+                match msg {
+                    AggregatedMessage::Ping(bytes) => {
+                        if session.pong(&bytes).await.is_err() {
+                            tracing::error!("Failed to send pong back to session");
+                            return;
                         }
                     }
+
+                    AggregatedMessage::Text(string) => {
+                        if string.chars().count() > 512 {
+                            // TODO: Possibly use error message struct in models
+                            // This isn't super necessary though and this shortcut saves some unnecessary error handling...
+                            let error_msg = json!({
+                                "ok": "false",
+                                "error": "message_too_long",
+                                "message": "Message larger than 512 characters",
+                                "type": "error"
+                            })
+                            .to_string();
+                            tracing::info!("Message received was larger than 512 characters");
+
+                            let _ = session.text(error_msg).await;
+                        } else {
+                            tracing::debug!("Message received: {string}");
+
+                            let process_result =
+                                handler::process_text_msg(&state.pool, &server, &uuid, &string)
+                                    .await;
+
+                            if let Ok(message) = process_result {
+                                let msg = serde_json::to_string(&message)
+                                    .expect("Failed to serialize message into string");
+                                let _ = session.text(msg).await;
+                            } else {
+                                tracing::error!("Error in processing message")
+                            }
+                        }
+                    }
+
+                    AggregatedMessage::Close(reason) => {
+                        let _ = session.close(reason).await;
+
+                        tracing::info!("Got close, cleaning up");
+                        server.cleanup_session(&uuid);
+
+                        return;
+                    }
+
+                    AggregatedMessage::Pong(_) => {
+                        tracing::trace!("Received a pong back! :D");
+                        *alive.lock().await = Instant::now();
+                    }
+
+                    _ => (), // Binary data is just ignored
                 }
-
-                AggregatedMessage::Close(reason) => {
-                    let _ = session.close(reason).await;
-
-                    tracing::info!("Got close, cleaning up");
-                    server.cleanup_session(&uuid);
-
-                    return;
-                }
-
-                AggregatedMessage::Pong(_) => {
-                    tracing::trace!("Received a pong back! :D");
-                    *alive.lock().await = Instant::now();
-                }
-
-                _ => (), // Binary data is just ignored
             }
+
+            let _ = session.close(None).await;
+            cleanup_session(server, uuid, session_closed);
         }
+        .await;
 
-        let _ = session.close(None).await;
-        cleanup_session(server, uuid, session_closed);
-
+        // Always abort the heartbeat task when message handling exits
         heartbeat_handle.abort();
     });
 
