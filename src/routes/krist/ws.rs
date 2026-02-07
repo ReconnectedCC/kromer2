@@ -114,12 +114,12 @@ pub async fn gateway(
     handler::send_hello_message(&mut session).await;
 
     let cleanup_session =
-        |server: Arc<WebSocketServer>, uuid: Uuid, session_closed: Arc<AtomicBool>| async move {
+        |server: Arc<WebSocketServer>, uuid: Uuid, session_closed: Arc<AtomicBool>| {
             if session_closed
                 .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
                 .is_ok()
             {
-                server.cleanup_session(&uuid).await;
+                server.cleanup_session(&uuid);
             }
         };
 
@@ -139,7 +139,7 @@ pub async fn gateway(
                 tracing::info!("Session timed out");
                 let _ = session2.close(None).await;
 
-                cleanup_session(server2, uuid, session_closed2).await;
+                cleanup_session(server2, uuid, session_closed2);
 
                 break;
             }
@@ -148,7 +148,7 @@ pub async fn gateway(
                 tracing::warn!("Failed to send ping message to session, cleaning it up");
 
                 let _ = session2.close(None).await;
-                cleanup_session(server2, uuid, session_closed2).await;
+                cleanup_session(server2, uuid, session_closed2);
 
                 break;
             }
@@ -167,7 +167,7 @@ pub async fn gateway(
             if session2.text(return_message).await.is_err() {
                 tracing::debug!("Failed to send keepalive to session");
                 let _ = session2.close(None).await;
-                cleanup_session(server2, uuid, session_closed2).await;
+                cleanup_session(server2, uuid, session_closed2);
                 break;
             }
         }
@@ -218,7 +218,7 @@ pub async fn gateway(
                     let _ = session.close(reason).await;
 
                     tracing::info!("Got close, cleaning up");
-                    server.cleanup_session(&uuid).await;
+                    server.cleanup_session(&uuid);
 
                     return;
                 }
@@ -233,7 +233,7 @@ pub async fn gateway(
         }
 
         let _ = session.close(None).await;
-        cleanup_session(server, uuid, session_closed).await;
+        cleanup_session(server, uuid, session_closed);
 
         heartbeat_handle.abort();
     });
