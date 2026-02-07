@@ -169,9 +169,9 @@ pub async fn send_hello_message(session: &mut actix_ws::Session) {
         },
     };
 
-    if let Ok(msg) = serde_json::to_string(&hello_message) {
-        if session.text(msg).await.is_err() {
-            tracing::debug!("Failed to send hello message (connection may have just closed)");
-        }
+    if let Ok(msg) = serde_json::to_string(&hello_message)
+        && session.text(msg).await.is_err()
+    {
+        tracing::debug!("Failed to send hello message (connection may have just closed)");
     }
 }
