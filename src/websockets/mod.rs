@@ -71,7 +71,7 @@ impl WebSocketServer {
     }
 
     #[tracing::instrument(skip_all, fields(address = token_data.address))]
-    pub async fn obtain_token(&self, token_data: WebSocketTokenData) -> Uuid {
+    pub fn obtain_token(&self, token_data: WebSocketTokenData) -> Uuid {
         let uuid = Uuid::new_v4();
 
         tracing::debug!("Inserting token {uuid} into cache");
@@ -90,7 +90,7 @@ impl WebSocketServer {
         uuid
     }
 
-    pub async fn use_token(
+    pub fn use_token(
         &self,
         uuid: &Uuid,
     ) -> Result<WebSocketTokenData, errors::WebSocketServerError> {
@@ -105,7 +105,7 @@ impl WebSocketServer {
     }
 
     #[tracing::instrument(skip_all, fields(event = ?event))]
-    pub async fn subscribe_to_event(&self, uuid: &Uuid, event: WebSocketSubscriptionType) {
+    pub fn subscribe_to_event(&self, uuid: &Uuid, event: WebSocketSubscriptionType) {
         if let Some(data) = self.sessions.get_mut(uuid) {
             tracing::info!("Session subscribed to event");
             data.subscriptions.insert(event);
@@ -115,14 +115,14 @@ impl WebSocketServer {
     }
 
     #[tracing::instrument(skip_all, fields(event = ?event))]
-    pub async fn unsubscribe_from_event(&self, uuid: &Uuid, event: &WebSocketSubscriptionType) {
+    pub fn unsubscribe_from_event(&self, uuid: &Uuid, event: &WebSocketSubscriptionType) {
         if let Some(data) = self.sessions.get_mut(uuid) {
             tracing::info!("Session unsubscribed from event");
             data.subscriptions.remove(event);
         }
     }
 
-    pub async fn get_subscription_list(&self, uuid: &Uuid) -> Vec<WebSocketSubscriptionType> {
+    pub fn get_subscription_list(&self, uuid: &Uuid) -> Vec<WebSocketSubscriptionType> {
         if let Some(data) = self.sessions.get(uuid) {
             let subscriptions: Vec<WebSocketSubscriptionType> =
                 data.subscriptions.iter().map(|x| x.clone()).collect(); // not my fav piece of code but it works
@@ -219,7 +219,7 @@ impl WebSocketServer {
         }
     }
 
-    pub async fn fetch_session_data(&self, uuid: &Uuid) -> Option<WebSocketSessionData> {
+    pub fn fetch_session_data(&self, uuid: &Uuid) -> Option<WebSocketSessionData> {
         self.sessions
             .get(uuid)
             .map(|session| session.value().clone())
