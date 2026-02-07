@@ -64,7 +64,7 @@ impl WebSocketServer {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn cleanup_session(&self, uuid: &Uuid) {
+    pub fn cleanup_session(&self, uuid: &Uuid) {
         self.sessions.remove(uuid);
 
         tracing::info!("Cleaned session");
@@ -189,7 +189,7 @@ impl WebSocketServer {
         while let Some((uuid, result)) = futures.next().await {
             if result.is_err() {
                 tracing::warn!("Got an unexpected closed session");
-                self.cleanup_session(&uuid).await;
+                self.cleanup_session(&uuid);
             }
         }
     }
@@ -214,7 +214,7 @@ impl WebSocketServer {
         while let Some((uuid, result)) = futures.next().await {
             if result.is_err() {
                 tracing::warn!("Got an unexpected closed session");
-                self.cleanup_session(&uuid).await;
+                self.cleanup_session(&uuid);
             }
         }
     }
