@@ -65,8 +65,8 @@ impl KristErrorExt for KristError {
             KristError::Transaction(e) => e.error_type(),
             KristError::WebSocket(e) => e.error_type(),
             KristError::Database(_) => "internal_server_error",
-            KristError::JsonPayload(_) => "internal_server_error",
-            KristError::Path(_) => "internal_server_error",
+            KristError::JsonPayload(_) => "payload_error",
+            KristError::Path(_) => "path_error",
             KristError::Custom(e) => e, // Same way as krist, where message is the error type when no message type is given
         }
     }
@@ -84,8 +84,8 @@ impl error::ResponseError for KristError {
             KristError::Transaction(e) => e.status_code(),
             KristError::WebSocket(e) => e.status_code(),
             KristError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            KristError::JsonPayload(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            KristError::Path(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            KristError::JsonPayload(_) => StatusCode::BAD_REQUEST,
+            KristError::Path(_) => StatusCode::BAD_REQUEST,
             KristError::Custom(_) => StatusCode::BAD_REQUEST,
         }
     }

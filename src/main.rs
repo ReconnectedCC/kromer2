@@ -1,11 +1,19 @@
 use actix_cors::Cors;
-use actix_web::{App, HttpServer, middleware, web};
+use actix_web::{
+    App, HttpServer, middleware,
+    web,
+};
 use sqlx::postgres::PgPool;
 use std::env;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
-use kromer::{AppState, routes, websockets::WebSocketServer};
+use kromer::{
+    AppState,
+    auth::{AuthAddon, AuthSessions},
+    routes,
+    websockets::WebSocketServer,
+};
 
 #[actix_web::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -23,7 +31,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Database migrations completed successfully");
 
     let krist_ws_server = WebSocketServer::new();
+
+    let sub_tx = kromer::subs::new_sub_manager(pool.clone(), krist_ws_server.clone());
+
     let state = web::Data::new(AppState { pool });
+
+    let auth = AuthSessions::default();
+
+    let session_manager = web::Data::new(auth);
 
     #[derive(OpenApi)]
     #[openapi(
@@ -31,6 +46,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             routes::v1::wallet::wallet_get_by_uuid,
             routes::v1::wallet::wallet_get_by_name,
             routes::v1::ws::ws_session_get_count,
+            routes::v1::auth::login,
+            routes::v1::auth::logout,
+            routes::v1::contracts::create_contract,
+            routes::v1::contracts::list_contracts,
+            routes::v1::contracts::contract_by_id,
+            routes::v1::contracts::contract_subscribers,
+            routes::v1::contracts::patch_contract,
             routes::krist::transactions::transaction_list,
             routes::krist::transactions::transaction_create,
             routes::krist::transactions::transaction_latest,
@@ -101,7 +123,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             kromer::models::krist::addresses::AddressGetQuery,
             kromer::models::krist::webserver::lookup::addresses::LookupResponse,
             kromer::models::krist::webserver::lookup::addresses::QueryParameters,
-        ))
+            kromer::models::kromer::auth::AuthenticatedResponse,
+            kromer::models::kromer::subs::ContractCreateRequest,
+            kromer::models::kromer::subs::ContractInfo,
+            kromer::models::kromer::subs::SubscriptionInfo,
+        )),
+        modifiers(&AuthAddon),
     )]
     struct ApiDocs;
 
@@ -114,6 +141,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         App::new()
             .app_data(state.clone())
+            .app_data(web::ThinData(sub_tx.clone()))
+            .app_data(session_manager.clone())
             .app_data(web::Data::new(krist_ws_server.clone()))
             .wrap(middleware::Logger::new(
                 r#"%a "%r" %s %b "%{Referer}i" "%{User-Agent}i" "%{X-CC-ID}i" %T"#,

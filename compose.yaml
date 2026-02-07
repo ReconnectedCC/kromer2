@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  kromer:
+    build: .
+    depends_on:
+      - database
+    environment:
+      DATABASE_URL: "postgres://postgres:password@database:5432/kromer"
+      SERVER_URL: "kromer:8080"
+      INTERNAL_KEY: "password"
+      FORCE_WS_INSECURE: true
+      PUBLIC_URL: "kromer:8080"
+    ports: 
+      - '8080:8080'
+  database:
+    image: postgres:17.6-trixie
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: kromer
+    ports:
+      - '5432:5432'
+    volumes:
+      - db_data:/var/lib/postgresql/data
+volumes:
+  db_data: 

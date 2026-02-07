@@ -1,10 +1,12 @@
 use sqlx::{Pool, Postgres};
 
+pub mod auth;
 pub mod database;
 pub mod errors;
 pub mod guards;
 pub mod models;
 pub mod routes;
+pub mod subs;
 pub mod utils;
 pub mod websockets;
 

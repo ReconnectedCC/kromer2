@@ -49,3 +49,14 @@ impl<'a, T: Serialize + ToSchema> Default for ApiResponse<'a, T> {
         }
     }
 }
+
+/// A response from an endpoint that takes paginated parameters.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct PaginatedResponse<T> {
+    /// The numbe of entries returned in `items`.
+    pub count: usize,
+    /// The number of entries remaining after the final entry in `items`. If you passed additional
+    /// filters to the endpoint, they are taken into account.
+    pub remaining: usize,
+    pub items: Vec<T>,
+}
