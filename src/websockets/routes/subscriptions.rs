@@ -9,7 +9,7 @@ use crate::{
     websockets::{WebSocketServer, types::common::WebSocketSubscriptionType},
 };
 
-pub async fn subscribe(
+pub fn subscribe(
     server: &WebSocketServer,
     uuid: &Uuid,
     event: String,
@@ -17,9 +17,9 @@ pub async fn subscribe(
 ) -> WebSocketMessage {
     if WebSocketSubscriptionType::is_valid(&event) {
         let event = WebSocketSubscriptionType::from_str(&event).unwrap(); // Unwrap should be fine, we made sure it is valid above
-        server.subscribe_to_event(uuid, event).await;
+        server.subscribe_to_event(uuid, event);
 
-        let subscription_list = server.get_subscription_list(uuid).await;
+        let subscription_list = server.get_subscription_list(uuid);
         let subscription_list: Vec<String> = subscription_list
             .into_iter()
             .map(|x| x.into_string())
@@ -48,7 +48,7 @@ pub async fn subscribe(
     }
 }
 
-pub async fn unsubscribe(
+pub fn unsubscribe(
     server: &WebSocketServer,
     uuid: &Uuid,
     event: String,
@@ -56,9 +56,9 @@ pub async fn unsubscribe(
 ) -> WebSocketMessage {
     if WebSocketSubscriptionType::is_valid(&event) {
         let event = WebSocketSubscriptionType::from_str(&event).unwrap(); // Unwrap should be fine, we made sure it is valid above
-        server.unsubscribe_from_event(uuid, &event).await;
+        server.unsubscribe_from_event(uuid, &event);
 
-        let subscription_list = server.get_subscription_list(uuid).await;
+        let subscription_list = server.get_subscription_list(uuid);
         let subscription_list: Vec<String> = subscription_list
             .into_iter()
             .map(|x| x.into_string())
@@ -87,12 +87,12 @@ pub async fn unsubscribe(
     }
 }
 
-pub async fn get_subscription_level(
+pub fn get_subscription_level(
     server: &WebSocketServer,
     uuid: &Uuid,
     msg_id: Option<usize>,
 ) -> WebSocketMessage {
-    let subscription_list = server.get_subscription_list(uuid).await;
+    let subscription_list = server.get_subscription_list(uuid);
     let subscription_list: Vec<String> = subscription_list
         .into_iter()
         .map(|x| x.into_string())
@@ -109,7 +109,7 @@ pub async fn get_subscription_level(
     }
 }
 
-pub async fn get_valid_subscription_levels(msg_id: Option<usize>) -> WebSocketMessage {
+pub fn get_valid_subscription_levels(msg_id: Option<usize>) -> WebSocketMessage {
     let subscription_list = vec![
         WebSocketSubscriptionType::Blocks,
         WebSocketSubscriptionType::OwnBlocks,

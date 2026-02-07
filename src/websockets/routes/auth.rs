@@ -27,24 +27,34 @@ pub async fn perform_login(
             if response.authed {
                 let wallet = response.model;
 
-                let mut session = server
-                    .sessions
-                    .get_mut(uuid)
-                    .expect("Expected the session to exist, why doesn't it?");
-                session.address = wallet.address.clone();
-                session.private_key = Some(private_key);
+                if let Some(mut session) = server.sessions.get_mut(uuid) {
+                    session.address = wallet.address.clone();
+                    session.private_key = Some(private_key);
 
-                tracing::debug!("Session successfully logged in");
+                    tracing::debug!("Session successfully logged in");
 
-                WebSocketMessage {
-                    ok: Some(true),
-                    id: msg_id,
-                    r#type: WebSocketMessageInner::Response {
-                        data: WebSocketMessageResponse::Login {
-                            is_guest: false,
-                            address: Some(wallet.into()),
+                    WebSocketMessage {
+                        ok: Some(true),
+                        id: msg_id,
+                        r#type: WebSocketMessageInner::Response {
+                            data: WebSocketMessageResponse::Login {
+                                is_guest: false,
+                                address: Some(wallet.into()),
+                            },
                         },
-                    },
+                    }
+                } else {
+                    tracing::error!(
+                        "Session not found during login, session may have been cleaned up"
+                    );
+                    WebSocketMessage {
+                        ok: Some(false),
+                        id: msg_id,
+                        r#type: WebSocketMessageInner::Error {
+                            error: "session_not_found".into(),
+                            message: "Session not found".into(),
+                        },
+                    }
                 }
             } else {
                 WebSocketMessage {
@@ -72,23 +82,31 @@ pub async fn perform_login(
     }
 }
 
-pub async fn perform_logout(
+pub fn perform_logout(
     server: &WebSocketServer,
     uuid: &Uuid,
     msg_id: Option<usize>,
 ) -> WebSocketMessage {
-    let mut session = server
-        .sessions
-        .get_mut(uuid)
-        .expect("Expected the session to exist, why doesn't it?");
-    session.address = String::from("guest");
-    session.private_key = None;
+    if let Some(mut session) = server.sessions.get_mut(uuid) {
+        session.address = String::from("guest");
+        session.private_key = None;
 
-    WebSocketMessage {
-        ok: Some(true),
-        id: msg_id,
-        r#type: WebSocketMessageInner::Response {
-            data: WebSocketMessageResponse::Logout { is_guest: true },
-        },
+        WebSocketMessage {
+            ok: Some(true),
+            id: msg_id,
+            r#type: WebSocketMessageInner::Response {
+                data: WebSocketMessageResponse::Logout { is_guest: true },
+            },
+        }
+    } else {
+        tracing::error!("Session not found during logout, session may have been cleaned up");
+        WebSocketMessage {
+            ok: Some(false),
+            id: msg_id,
+            r#type: WebSocketMessageInner::Error {
+                error: "session_not_found".into(),
+                message: "Session not found".into(),
+            },
+        }
     }
 }

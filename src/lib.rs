@@ -1,3 +1,5 @@
+#![deny(clippy::unused_async)]
+
 use sqlx::{Pool, Postgres};
 
 pub mod database;
