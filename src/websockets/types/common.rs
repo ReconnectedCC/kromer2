@@ -1,4 +1,4 @@
-use dashmap::DashSet;
+use scc::HashSet;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -13,10 +13,10 @@ pub struct WebSocketSessionData {
     pub private_key: Option<String>,
     #[serde(skip)]
     pub session: actix_ws::Session,
-    pub subscriptions: DashSet<WebSocketSubscriptionType>,
+    pub subscriptions: HashSet<WebSocketSubscriptionType>,
 }
 
-#[derive(Clone, Debug, Hash, Eq, Serialize, Deserialize, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Hash, Eq, Serialize, Deserialize, PartialEq, PartialOrd)]
 #[serde(rename_all = "camelCase")]
 pub enum WebSocketSubscriptionType {
     Blocks,
@@ -51,6 +51,10 @@ impl WebSocketSubscriptionType {
 impl WebSocketSessionData {
     pub fn is_guest(&self) -> bool {
         self.address == *"guest"
+    }
+
+    pub fn is_subscribed_to(&self, event: WebSocketSubscriptionType) -> bool {
+        self.subscriptions.contains_sync(&event)
     }
 }
 
