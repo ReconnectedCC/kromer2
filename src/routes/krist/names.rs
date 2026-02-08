@@ -366,7 +366,7 @@ async fn name_transfer(
 
     if name_model.owner == details.address {
         tracing::debug!("Disallowed bumping name, returning original data");
-        tx.commit().await?;
+        // No state change, let transaction drop without committing
         let response = NameResponse {
             ok: true,
             name: name_model.into(),
