@@ -178,31 +178,32 @@ impl<'q> Model {
             .map_err(DatabaseError::Sqlx)
     }
 
-    pub async fn create<A>(conn: A, creation_data: TransactionCreateData) -> Result<Model>
-    where
-        A: Acquire<'q, Database = Postgres>,
-    {
+    /// Internal helper that performs the actual transaction creation logic.
+    /// Fetches wallets, updates balances, and inserts the transaction record.
+    /// Does NOT manage transaction lifecycle - works within an existing transaction.
+    async fn create_impl(
+        tx: &mut sqlx::Transaction<'_, Postgres>,
+        creation_data: TransactionCreateData,
+    ) -> Result<Model> {
         let metadata = creation_data.metadata.unwrap_or_default();
 
-        let mut tx = conn.begin().await?;
-
-        let sender = Wallet::fetch_by_address(&mut *tx, &creation_data.from)
+        let sender = Wallet::fetch_by_address(&mut **tx, &creation_data.from)
             .await?
             .ok_or_else(|| {
                 DatabaseError::Wallet(WalletError::NotFound(creation_data.from.clone()))
             })?;
 
-        let recipient = Wallet::fetch_by_address(&mut *tx, &creation_data.to)
+        let recipient = Wallet::fetch_by_address(&mut **tx, &creation_data.to)
             .await?
             .ok_or_else(|| {
                 DatabaseError::Wallet(WalletError::NotFound(creation_data.to.clone()))
             })?;
 
         let _ = sender
-            .update_balance(&mut *tx, -creation_data.amount)
+            .update_balance(&mut **tx, -creation_data.amount)
             .await?;
         let _ = recipient
-            .update_balance(&mut *tx, creation_data.amount)
+            .update_balance(&mut **tx, creation_data.amount)
             .await?;
 
         let q = r#"INSERT INTO transactions(amount, "from", "to", metadata, transaction_type, date, name, sent_metaname, sent_name) VALUES ($1, $2, $3, $4, $5, NOW(), $6, $7, $8) RETURNING *"#;
@@ -216,10 +217,32 @@ impl<'q> Model {
             .bind(creation_data.name)
             .bind(creation_data.sent_metaname)
             .bind(creation_data.sent_name)
-            .fetch_one(&mut *tx)
+            .fetch_one(&mut **tx)
             .await?;
-        tx.commit().await?; // I'm not sure this is how it should be done? `Wallet::update_balance` also creates a transaction..
 
+        Ok(model)
+    }
+
+    /// Create a transaction within an existing database transaction.
+    /// This does NOT commit - the caller is responsible for transaction management.
+    /// Use this when you need to create a transaction as part of a larger atomic operation.
+    pub async fn create_in_transaction(
+        tx: &mut sqlx::Transaction<'_, Postgres>,
+        creation_data: TransactionCreateData,
+    ) -> Result<Model> {
+        Self::create_impl(tx, creation_data).await
+    }
+
+    /// Create a transaction and manage the database transaction lifecycle.
+    /// This starts a new transaction, updates balances, inserts the record, and commits.
+    /// Use this when you want a standalone transaction creation.
+    pub async fn create<A>(conn: A, creation_data: TransactionCreateData) -> Result<Model>
+    where
+        A: Acquire<'q, Database = Postgres>,
+    {
+        let mut tx = conn.begin().await?;
+        let model = Self::create_impl(&mut tx, creation_data).await?;
+        tx.commit().await?;
         Ok(model)
     }
 
