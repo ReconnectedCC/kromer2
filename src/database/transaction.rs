@@ -178,6 +178,54 @@ impl<'q> Model {
             .map_err(DatabaseError::Sqlx)
     }
 
+    /// Create a transaction within an existing database transaction.
+    /// This does NOT commit - the caller is responsible for transaction management.
+    /// Use this when you need to create a transaction as part of a larger atomic operation.
+    pub async fn create_in_transaction(
+        tx: &mut sqlx::Transaction<'_, Postgres>,
+        creation_data: TransactionCreateData,
+    ) -> Result<Model> {
+        let metadata = creation_data.metadata.unwrap_or_default();
+
+        let sender = Wallet::fetch_by_address(&mut **tx, &creation_data.from)
+            .await?
+            .ok_or_else(|| {
+                DatabaseError::Wallet(WalletError::NotFound(creation_data.from.clone()))
+            })?;
+
+        let recipient = Wallet::fetch_by_address(&mut **tx, &creation_data.to)
+            .await?
+            .ok_or_else(|| {
+                DatabaseError::Wallet(WalletError::NotFound(creation_data.to.clone()))
+            })?;
+
+        let _ = sender
+            .update_balance(&mut **tx, -creation_data.amount)
+            .await?;
+        let _ = recipient
+            .update_balance(&mut **tx, creation_data.amount)
+            .await?;
+
+        let q = r#"INSERT INTO transactions(amount, "from", "to", metadata, transaction_type, date, name, sent_metaname, sent_name) VALUES ($1, $2, $3, $4, $5, NOW(), $6, $7, $8) RETURNING *"#;
+
+        let model = sqlx::query_as(q)
+            .bind(creation_data.amount)
+            .bind(&creation_data.from)
+            .bind(&creation_data.to)
+            .bind(metadata)
+            .bind(creation_data.transaction_type)
+            .bind(creation_data.name)
+            .bind(creation_data.sent_metaname)
+            .bind(creation_data.sent_name)
+            .fetch_one(&mut **tx)
+            .await?;
+
+        Ok(model)
+    }
+
+    /// Create a transaction and manage the database transaction lifecycle.
+    /// This starts a new transaction, updates balances, inserts the record, and commits.
+    /// Use this when you want a standalone transaction creation.
     pub async fn create<A>(conn: A, creation_data: TransactionCreateData) -> Result<Model>
     where
         A: Acquire<'q, Database = Postgres>,

@@ -265,7 +265,8 @@ async fn name_register(
         ..Default::default()
     };
 
-    let transaction = Transaction::create(&mut *tx, creation_data).await?;
+    let transaction = Transaction::create_in_transaction(&mut tx, creation_data).await?;
+
     tracing::info!(
         "Created transaction for name purchase with ID {}",
         transaction.id
@@ -347,32 +348,60 @@ async fn name_transfer(
 
     let name = name.trim().to_lowercase();
 
-    let current_owner_response = Wallet::verify_address(pool, details.private_key).await?;
+    // Start transaction for all operations to prevent race conditions
+    let mut tx = pool.begin().await?;
+
+    let current_owner_response = Wallet::verify_address(&mut *tx, details.private_key).await?;
     if !current_owner_response.authed {
         return Err(KristError::Address(AddressError::AuthFailed));
     }
     let current_owner = current_owner_response.model;
 
-    let name = Name::fetch_by_name(pool, &name)
+    let name_model = Name::fetch_by_name(&mut *tx, &name)
         .await?
-        .ok_or_else(|| KristError::Name(NameError::NameNotFound(name)))?;
-    if name.owner != current_owner.address {
-        return Err(KristError::Name(NameError::NotNameOwner(name.name)));
+        .ok_or_else(|| KristError::Name(NameError::NameNotFound(name.clone())))?;
+    if name_model.owner != current_owner.address {
+        return Err(KristError::Name(NameError::NotNameOwner(name_model.name)));
     }
 
-    if name.owner == details.address {
+    if name_model.owner == details.address {
         tracing::debug!("Disallowed bumping name, returning original data");
+        tx.commit().await?;
         let response = NameResponse {
             ok: true,
-            name: name.into(),
+            name: name_model.into(),
         };
 
         return Ok(HttpResponse::Ok().json(response));
     }
 
-    let updated_name = name
-        .transfer_ownership(pool, &server, details.address)
+    // Update the name ownership
+    let update_q = "UPDATE names SET owner = $2, last_updated = NOW(), last_transfered = NOW() WHERE name = $1 RETURNING *";
+
+    let updated_name: Name = sqlx::query_as(update_q)
+        .bind(&name_model.name)
+        .bind(&details.address)
+        .fetch_one(&mut *tx)
         .await?;
+
+    // Create the transaction record
+    let creation_data = TransactionCreateData {
+        from: name_model.owner,
+        to: details.address,
+        amount: rust_decimal::dec!(0),
+        name: Some(name_model.name),
+        transaction_type: TransactionType::NameTransfer,
+        ..Default::default()
+    };
+
+    let transaction = Transaction::create_in_transaction(&mut tx, creation_data).await?;
+
+    tx.commit().await?;
+
+    let event = WebSocketMessage::new_event(WebSocketEvent::Transaction {
+        transaction: transaction.into(),
+    });
+    server.broadcast_event(event).await;
 
     let response = NameResponse {
         ok: true,

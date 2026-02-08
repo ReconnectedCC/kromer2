@@ -233,6 +233,7 @@ impl<'q> Model {
             .fetch_one(&mut *tx)
             .await?;
 
+        // Create transaction record to avoid nested transaction
         let creation_data = TransactionCreateData {
             from: self.owner,
             to: new_owner_address,
@@ -242,7 +243,8 @@ impl<'q> Model {
             ..Default::default()
         };
 
-        let transaction = Transaction::create(&mut *tx, creation_data).await?;
+        let transaction = Transaction::create_in_transaction(&mut tx, creation_data).await?;
+
         let event = WebSocketMessage::new_event(WebSocketEvent::Transaction {
             transaction: transaction.into(),
         });
