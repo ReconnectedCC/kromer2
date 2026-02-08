@@ -375,13 +375,9 @@ async fn name_transfer(
         return Ok(HttpResponse::Ok().json(response));
     }
 
-    // Update the name ownership
-    let update_q = "UPDATE names SET owner = $2, last_updated = NOW(), last_transfered = NOW() WHERE name = $1 RETURNING *";
-
-    let updated_name: Name = sqlx::query_as(update_q)
-        .bind(&name_model.name)
-        .bind(&details.address)
-        .fetch_one(&mut *tx)
+    // Update the name ownership using the database layer method
+    let updated_name = name_model
+        .update_ownership_in_transaction(&mut tx, &details.address)
         .await?;
 
     // Create the transaction record

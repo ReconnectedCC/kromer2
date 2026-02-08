@@ -214,7 +214,28 @@ impl<'q> Model {
         Ok(owner)
     }
 
-    /// Transfer ownership to a new wallet
+    /// Update name ownership within an existing transaction.
+    /// This does NOT create a transaction record or emit events.
+    /// Use this when you need to update ownership as part of a larger atomic operation.
+    pub async fn update_ownership_in_transaction(
+        &self,
+        tx: &mut sqlx::Transaction<'_, Postgres>,
+        new_owner_address: &str,
+    ) -> Result<Model> {
+        let q = "UPDATE names SET owner = $2, last_updated = NOW(), last_transfered = NOW() WHERE name = $1 RETURNING *";
+
+        let updated_name: Model = sqlx::query_as(q)
+            .bind(&self.name)
+            .bind(new_owner_address)
+            .fetch_one(&mut **tx)
+            .await?;
+
+        Ok(updated_name)
+    }
+
+    /// Transfer ownership to a new wallet.
+    /// This manages the transaction lifecycle, creates a transaction record, and emits events.
+    /// Use this for standalone name transfers.
     pub async fn transfer_ownership<A>(
         self,
         conn: A,
@@ -225,12 +246,9 @@ impl<'q> Model {
         A: Acquire<'q, Database = Postgres>,
     {
         let mut tx = conn.begin().await?;
-        let q = "UPDATE names SET owner = $2, last_updated = NOW(), last_transfered = NOW() WHERE name = $1 RETURNING *";
 
-        let updated_name: Model = sqlx::query_as(q)
-            .bind(&self.name)
-            .bind(&new_owner_address)
-            .fetch_one(&mut *tx)
+        let updated_name = self
+            .update_ownership_in_transaction(&mut tx, &new_owner_address)
             .await?;
 
         // Create transaction record to avoid nested transaction
