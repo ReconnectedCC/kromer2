@@ -218,7 +218,7 @@ impl<'q> Model {
             .bind(creation_data.sent_name)
             .fetch_one(&mut *tx)
             .await?;
-        tx.commit().await?; // I'm not sure this is how it should be done? `Wallet::update_balance` also creates a transaction..
+        tx.commit().await?;
 
         Ok(model)
     }

@@ -2,9 +2,7 @@ use actix_web::{HttpResponse, get, post, web};
 use rust_decimal::dec;
 
 use crate::database::ModelExt;
-use crate::database::transaction::{
-    Model as Transaction, TransactionCreateData, TransactionNameData, TransactionType,
-};
+use crate::database::transaction::{Model as Transaction, TransactionNameData, TransactionType};
 use crate::database::wallet::Model as Wallet;
 
 use crate::database::name::Model as Name;
@@ -77,7 +75,7 @@ async fn transaction_create(
 
     // Check if the `to` field is not empty and must be below or equal to 64.
     // The length check is for making sure there is enough space for metaname too.
-    if details.to.is_empty() && details.to.len() <= 64 {
+    if details.to.is_empty() || details.to.len() > 64 {
         return Err(KristError::Generic(GenericError::InvalidParameter(
             "to".to_string(),
         )));
@@ -92,7 +90,7 @@ async fn transaction_create(
 
     let mut tx = pool.begin().await?;
 
-    let sender_verify_response = Wallet::verify_address(pool, details.private_key).await?;
+    let sender_verify_response = Wallet::verify_address(&mut *tx, details.private_key).await?;
     if !sender_verify_response.authed {
         return Err(KristError::Address(AddressError::AuthFailed));
     }
@@ -135,18 +133,26 @@ async fn transaction_create(
         ));
     }
 
-    let creation_data = TransactionCreateData {
-        from: sender.address,
-        to: recipient.address,
-        amount,
-        sent_metaname,
-        sent_name,
-        metadata: details.metadata,
-        transaction_type: TransactionType::Transfer,
-        ..Default::default()
-    };
+    // Update wallet balances within the same transaction
+    let _ = sender.update_balance(&mut *tx, -amount).await?;
+    let _ = recipient.update_balance(&mut *tx, amount).await?;
 
-    let transaction = Transaction::create(&mut *tx, creation_data).await?;
+    // Insert the transaction record
+    let metadata = details.metadata.unwrap_or_default();
+    let q = r#"INSERT INTO transactions(amount, "from", "to", metadata, transaction_type, date, name, sent_metaname, sent_name) VALUES ($1, $2, $3, $4, $5, NOW(), $6, $7, $8) RETURNING *"#;
+
+    let transaction: Transaction = sqlx::query_as(q)
+        .bind(amount)
+        .bind(&sender.address)
+        .bind(&recipient.address)
+        .bind(metadata)
+        .bind(TransactionType::Transfer)
+        .bind(None::<String>) // name field for Transfer type is None
+        .bind(sent_metaname)
+        .bind(sent_name)
+        .fetch_one(&mut *tx)
+        .await?;
+
     let transaction_json: TransactionJson = transaction.into();
 
     tx.commit().await?;
