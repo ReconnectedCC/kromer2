@@ -112,31 +112,36 @@ impl<'q> Model {
         A: 'q + Acquire<'q, Database = Postgres>,
     {
         let private_key = private_key.as_ref();
-        let mut tx = pool.acquire().await?;
-
         let address = crypto::make_v2_address(private_key, "k");
         let guh = format!("{address}{private_key}");
+        let hash = crypto::sha256(&guh);
 
         tracing::info!("Authentication attempt on address {address}");
 
-        let result = Model::fetch_by_address(&mut *tx, &address).await?;
-        let hash = crypto::sha256(&guh);
+        // Acquire connection, do work, then explicitly drop it
+        let wallet = {
+            let mut tx = pool.acquire().await?;
+            let result = Model::fetch_by_address(&mut *tx, &address).await?;
 
-        let wallet = match result {
-            Some(w) => w,
-            None => Self::create_wallet(&mut *tx, &address, &hash, None).await?,
+            let wallet = match result {
+                Some(w) => w,
+                None => Self::create_wallet(&mut *tx, &address, &hash, None).await?,
+            };
+
+            wallet
         };
-        let pkey = &wallet.private_key;
 
+        let pkey = &wallet.private_key;
         let authed = *pkey == Some(hash);
+
         if !authed {
             tracing::info!("Someone tried to login to an address they do not own");
         }
 
-        return Ok(VerifyResponse {
+        Ok(VerifyResponse {
             authed,
             model: wallet,
-        });
+        })
     }
 
     pub async fn create_wallet<E>(

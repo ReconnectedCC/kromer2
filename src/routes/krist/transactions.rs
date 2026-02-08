@@ -77,7 +77,7 @@ async fn transaction_create(
 
     // Check if the `to` field is not empty and must be below or equal to 64.
     // The length check is for making sure there is enough space for metaname too.
-    if details.to.is_empty() && details.to.len() <= 64 {
+    if details.to.is_empty() || details.to.len() > 64 {
         return Err(KristError::Generic(GenericError::InvalidParameter(
             "to".to_string(),
         )));
@@ -92,7 +92,7 @@ async fn transaction_create(
 
     let mut tx = pool.begin().await?;
 
-    let sender_verify_response = Wallet::verify_address(pool, details.private_key).await?;
+    let sender_verify_response = Wallet::verify_address(&mut *tx, details.private_key).await?;
     if !sender_verify_response.authed {
         return Err(KristError::Address(AddressError::AuthFailed));
     }
@@ -135,6 +135,7 @@ async fn transaction_create(
         ));
     }
 
+    // Create transaction within the existing transaction context
     let creation_data = TransactionCreateData {
         from: sender.address,
         to: recipient.address,
@@ -146,7 +147,8 @@ async fn transaction_create(
         ..Default::default()
     };
 
-    let transaction = Transaction::create(&mut *tx, creation_data).await?;
+    let transaction = Transaction::create_in_transaction(&mut tx, creation_data).await?;
+
     let transaction_json: TransactionJson = transaction.into();
 
     tx.commit().await?;

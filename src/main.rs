@@ -1,6 +1,6 @@
 use actix_cors::Cors;
 use actix_web::{App, HttpServer, middleware, web};
-use sqlx::postgres::PgPool;
+
 use std::env;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -16,7 +16,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let server_url = env::var("SERVER_URL").expect("SERVER_URL is not set in .env file");
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
 
-    let pool = PgPool::connect(&database_url).await?;
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(50)
+        .connect(&database_url)
+        .await?;
 
     tracing::info!("Running database migrations...");
     sqlx::migrate!("./migrations").run(&pool).await?;
