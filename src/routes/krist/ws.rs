@@ -28,6 +28,7 @@ struct WsConnDetails {
 #[post("/start")]
 #[tracing::instrument(name = "setup_ws_route", level = "debug", skip_all)]
 pub async fn setup_ws(
+    req: HttpRequest,
     state: web::Data<AppState>,
     server: web::Data<WebSocketServer>,
     details: Option<web::Json<WsConnDetails>>,
@@ -38,6 +39,12 @@ pub async fn setup_ws(
     // with fuck all in it, I would be so happy <3
     let private_key = details.and_then(|d| d.into_inner().privatekey);
 
+    let computer_id = req
+        .headers()
+        .get("X-CC-ID")
+        .and_then(|id| id.to_str().ok())
+        .and_then(|s| s.parse::<i32>().ok());
+
     let uuid = match private_key {
         Some(private_key) => {
             let wallet = Wallet::verify_address(pool, &private_key)
@@ -45,12 +52,12 @@ pub async fn setup_ws(
                 .map_err(|_| KristError::Address(AddressError::AuthFailed))?;
             let model = wallet.model;
 
-            let token_data = WebSocketTokenData::new(model.address, Some(private_key));
+            let token_data = WebSocketTokenData::new(model.address, Some(private_key), computer_id);
 
             server.obtain_token(token_data)
         }
         None => {
-            let token_data = WebSocketTokenData::new("guest".into(), None);
+            let token_data = WebSocketTokenData::new("guest".into(), None, computer_id);
 
             server.obtain_token(token_data)
         }
