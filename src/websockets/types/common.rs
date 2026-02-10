@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 pub struct WebSocketTokenData {
     pub address: String,
     pub private_key: Option<String>,
+    pub computer_id: Option<i32>,
 }
 
 #[derive(Clone, Serialize)]
@@ -14,6 +15,7 @@ pub struct WebSocketSessionData {
     #[serde(skip)]
     pub session: actix_ws::Session,
     pub subscriptions: HashSet<WebSocketSubscriptionType>,
+    pub computer_id: Option<i32>,
 }
 
 #[derive(Clone, Copy, Debug, Hash, Eq, Serialize, Deserialize, PartialEq, PartialOrd)]
@@ -91,10 +93,11 @@ impl std::fmt::Display for WebSocketSubscriptionType {
 
 impl WebSocketTokenData {
     #[inline]
-    pub fn new(address: String, private_key: Option<String>) -> Self {
+    pub fn new(address: String, private_key: Option<String>, computer_id: Option<i32>) -> Self {
         Self {
             address,
             private_key,
+            computer_id,
         }
     }
 }

@@ -58,6 +58,7 @@ impl WebSocketServer {
             private_key: data.private_key,
             session,
             subscriptions,
+            computer_id: data.computer_id,
         };
 
         if self.sessions.insert_sync(uuid, session_data).is_err() {
