@@ -9,7 +9,7 @@ use actix_web::{HttpResponse, web};
 use actix_ws::AggregatedMessage;
 use chrono::Utc;
 use serde_json::json;
-use tokio::sync::Mutex;
+use std::sync::Mutex;
 use uuid::Uuid;
 
 use crate::AppState;
@@ -141,7 +141,8 @@ pub async fn gateway(
                 break;
             }
 
-            if Instant::now().duration_since(*alive2.lock().await) > CLIENT_TIMEOUT {
+            let last_heartbeat = *alive2.lock().expect("alive mutex poisoned");
+            if Instant::now().duration_since(last_heartbeat) > CLIENT_TIMEOUT {
                 tracing::info!("Session timed out");
 
                 // Don't call close() - it hangs when client is unresponsive.
@@ -236,7 +237,7 @@ pub async fn gateway(
 
                     AggregatedMessage::Pong(_) => {
                         tracing::trace!("Received a pong back! :D");
-                        *alive.lock().await = Instant::now();
+                        *alive.lock().expect("alive mutex poisoned") = Instant::now();
                     }
 
                     _ => (), // Binary data is just ignored
