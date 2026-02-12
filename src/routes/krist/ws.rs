@@ -143,8 +143,9 @@ pub async fn gateway(
 
             if Instant::now().duration_since(*alive2.lock().await) > CLIENT_TIMEOUT {
                 tracing::info!("Session timed out");
-                let _ = session2.close(None).await;
 
+                // Don't call close() - it hangs when client is unresponsive.
+                // Just cleanup and let the connection die naturally.
                 cleanup_session(server2, uuid, session_closed2);
 
                 break;
@@ -153,7 +154,8 @@ pub async fn gateway(
             if session2.ping(b"").await.is_err() {
                 tracing::warn!("Failed to send ping message to session, cleaning it up");
 
-                let _ = session2.close(None).await;
+                // Don't call close() - connection is already broken and close() can hang.
+                // Just cleanup and let the connection die naturally.
                 cleanup_session(server2, uuid, session_closed2);
 
                 break;
