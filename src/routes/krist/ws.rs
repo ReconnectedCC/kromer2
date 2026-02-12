@@ -141,15 +141,22 @@ pub async fn gateway(
                 break;
             }
 
-            if Instant::now().duration_since(*alive2.lock().await) > CLIENT_TIMEOUT {
+            let last_heartbeat = alive2.lock().await;
+            if Instant::now().duration_since(*last_heartbeat) > CLIENT_TIMEOUT {
                 tracing::info!("Session timed out");
 
                 // Don't call close() - it hangs when client is unresponsive.
                 // Just cleanup and let the connection die naturally.
                 cleanup_session(server2, uuid, session_closed2);
 
+                // Explicit drop MutexGuard, i do not fucking trust it.
+                drop(last_heartbeat);
+
                 break;
             }
+
+            // Explicit drop MutexGuard, i do not fucking trust it.
+            drop(last_heartbeat);
 
             if session2.ping(b"").await.is_err() {
                 tracing::warn!("Failed to send ping message to session, cleaning it up");
