@@ -226,9 +226,7 @@ pub async fn gateway(
                         }
                     }
 
-                    AggregatedMessage::Close(reason) => {
-                        let _ = session.close(reason).await;
-
+                    AggregatedMessage::Close(_reason) => {
                         tracing::info!("Got close, cleaning up");
                         server.cleanup_session(&uuid);
 
@@ -244,7 +242,6 @@ pub async fn gateway(
                 }
             }
 
-            let _ = session.close(None).await;
             cleanup_session(server, uuid, session_closed);
         }
         .await;
